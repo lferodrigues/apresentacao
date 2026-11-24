@@ -147,7 +147,7 @@
             <input id="file" type="file" accept="application/pdf,.pdf" hidden>
             <span class="dz-icon" aria-hidden="true">📄</span>
             <span id="dz-text"><strong>Clique para escolher</strong> ou arraste o PDF aqui</span>
-            <span class="muted small">Tamanho máximo: 30 MB</span>
+            <span class="muted small">Tamanho máximo: 30 MB · o PDF fica salvo em <b>Meus arquivos</b> por 6 meses</span>
           </label>
           <div id="upload-progress" class="progress" hidden><div class="bar"></div><span></span></div>
           <button class="btn primary block" type="submit" id="upload-btn" disabled>Enviar e gerar PIN</button>
@@ -160,9 +160,33 @@
         </form>
       </div>
 
+      <div class="card files-cta">
+        <div>
+          <h2>Meus arquivos</h2>
+          <p class="muted small">Todos os PDFs enviados ficam salvos por 6 meses. Veja, baixe, apresente de novo ou exclua.</p>
+        </div>
+        <button class="btn primary" type="button" id="open-files">📁 Abrir meus arquivos <span id="files-count" class="count-pill" hidden></span></button>
+      </div>
+
       <div class="card">
         <h2>Minhas apresentações</h2>
         <ul id="my-list" class="session-list"><li class="muted">Carregando…</li></ul>
+      </div>
+    </section>
+
+    <!-- Meus arquivos (PDFs salvos por 6 meses) -->
+    <section id="files" hidden>
+      <div class="card">
+        <div class="files-head">
+          <button class="btn ghost sm" type="button" id="files-back">← Voltar ao painel</button>
+          <h2>Meus arquivos</h2>
+        </div>
+        <p class="muted small">Os PDFs enviados ficam salvos por <strong>6 meses</strong> a partir do envio e depois são apagados automaticamente.</p>
+        <div class="files-tools">
+          <input id="files-search" type="search" placeholder="Buscar pelo título…" aria-label="Buscar arquivos">
+          <span id="files-usage" class="muted small"></span>
+        </div>
+        <ul id="files-list" class="session-list files-list"><li class="muted">Carregando…</li></ul>
       </div>
     </section>
 
@@ -271,11 +295,11 @@
         <p class="muted">PIN <strong id="end-pin"></strong>. O que você quer fazer?</p>
         <button class="dlg-option" value="finish" type="submit">
           <strong>Encerrar e liberar o download por 24 horas</strong>
-          <span class="muted small">Todos veem a tela final com link e QR Code para baixar o PDF (original ou com as anotações). Depois de 24 h o arquivo é apagado.</span>
+          <span class="muted small">Todos veem a tela final com link e QR Code para baixar o PDF (original ou com as anotações). Depois de 24 h o link para o público expira.</span>
         </button>
         <button class="dlg-option danger" value="delete" type="submit">
-          <strong>Encerrar e apagar agora</strong>
-          <span class="muted small">Apaga o arquivo e as anotações na hora. Ninguém mais consegue ver ou baixar.</span>
+          <strong>Encerrar sem download</strong>
+          <span class="muted small">Fecha o PIN e apaga as anotações na hora. Ninguém mais consegue ver ou baixar. O PDF continua em <b>Meus arquivos</b>.</span>
         </button>
         <button class="btn ghost block" value="cancel" type="submit">Cancelar</button>
       </form>

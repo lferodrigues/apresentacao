@@ -6,7 +6,7 @@ import { SlideRenderer } from "./pdf-render.js";
 import { AnnotationLayer, strokesFromSnap } from "./annotations.js";
 import { ScreenReceiver } from "./screen.js";
 import {
-  isValidPin, downloadPdf, toggleFullscreen, escapeHtml,
+  isValidPin, downloadPdf, sessionPdfPath, toggleFullscreen, escapeHtml,
   trackServerTime, serverNow, renderDownloadBox
 } from "./common.js";
 
@@ -133,7 +133,7 @@ function enter(pin) {
       current.loading = true;
       try {
         showMsg('<span class="spinner"></span>Baixando apresentação… 0%');
-        const bytes = await downloadPdf(db, pin, d.chunks, (p) =>
+        const bytes = await downloadPdf(db, sessionPdfPath(pin, d), d.chunks, (p) =>
           showMsg(`<span class="spinner"></span>Baixando apresentação… ${Math.round(p * 100)}%`));
         if (state !== current) return;
         await renderer.load(bytes);

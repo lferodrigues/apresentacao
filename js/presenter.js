@@ -6,18 +6,20 @@ import { SlideRenderer } from "./pdf-render.js";
 import { initAccount } from "./account.js";
 import { ScreenBroadcaster, canShareScreen, canUseCamera } from "./screen.js";
 import {
-  AnnotationLayer, PEN_COLORS, HL_COLORS, WIDTH, MAX_POINTS, encodePts, strokesFromSnap
+  AnnotationLayer, PEN_COLORS, HL_COLORS, WIDTH, MAX_POINTS, encodePts, strokesFromSnap,
+  downloadBytes, safeFileName
 } from "./annotations.js";
 import {
   CHUNK_SIZE, MAX_FILE_MB, bytesToBase64, downloadPdf, shareLink, downloadLink,
   toggleFullscreen, onSwipe, toast, copyText, escapeHtml,
-  trackServerTime, serverNow, formatDateTime, timeLeft, renderDownloadBox, modal, DOWNLOAD_HOURS
+  trackServerTime, serverNow, formatDateTime, timeLeft, renderDownloadBox, modal, DOWNLOAD_HOURS,
+  sessionPdfPath, libraryPdfPath, libraryExpiry, formatDate, formatSize, LIBRARY_MONTHS
 } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
 const sections = {
   login: $("login"), signup: $("signup"), forgot: $("forgot"),
-  dashboard: $("dashboard"), present: $("present"), screen: $("screen"),
+  dashboard: $("dashboard"), files: $("files"), present: $("present"), screen: $("screen"),
 };
 
 const stage = $("p-stage"), pMsg = $("p-msg");
@@ -48,11 +50,14 @@ if (!configOk) {
       user = u;
       show("dashboard");
       watchMyList();
+      watchLibrary();
     },
     onSignedOut() {
       stopPresenting(false);
       stopScreen(false);
       listUnsub?.(); listUnsub = null;
+      libUnsub?.(); libUnsub = null;
+      library = [];
       user = null;
     },
   });
@@ -116,34 +121,37 @@ $("upload-form").addEventListener("submit", async (e) => {
   const title = $("title").value.trim() || selectedFile.name.replace(/\.pdf$/i, "");
   let pin = null;
 
+  let fileId = null, uploaded = false;
+
   try {
     setProgress(0, "Lendo o PDF…");
     const bytes = new Uint8Array(await selectedFile.arrayBuffer());
     const numPages = await renderer.load(bytes); // valida o PDF
-
-    pin = await generatePin();
     const chunks = Math.max(1, Math.ceil(bytes.length / CHUNK_SIZE));
 
-    await set(ref(db, `sessions/${pin}`), {
-      owner: user.uid,
+    // 1) Salva o PDF em "Meus arquivos" (fica guardado por 6 meses)
+    fileId = push(ref(db, `library/${user.uid}`)).key;
+    await set(ref(db, `library/${user.uid}/${fileId}`), {
       title,
+      name: selectedFile.name.slice(0, 255),
+      size: bytes.length,
       numPages,
-      currentPage: 1,
       chunks,
       ready: false,
       createdAt: serverTimestamp(),
+      expiresAt: libraryExpiry(),
     });
-
     for (let i = 0; i < chunks; i++) {
       const part = bytes.subarray(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-      await set(ref(db, `files/${pin}/c${i}`), bytesToBase64(part));
+      await set(ref(db, `${libraryPdfPath(user.uid, fileId)}/c${i}`), bytesToBase64(part));
       setProgress((i + 1) / chunks, `Enviando… ${Math.round(((i + 1) / chunks) * 100)}%`);
     }
+    await update(ref(db, `library/${user.uid}/${fileId}`), { ready: true });
+    uploaded = true;
 
-    await update(ref(db), {
-      [`sessions/${pin}/ready`]: true,
-      [`users/${user.uid}/sessions/${pin}`]: { title, numPages, createdAt: serverTimestamp() },
-    });
+    // 2) Cria a apresentação (PIN) apontando para o arquivo salvo
+    setProgress(1, "Gerando o PIN…");
+    pin = await createPdfSession(fileId, title, numPages, chunks);
 
     setProgress(null);
     resetUploadForm();
@@ -154,11 +162,33 @@ $("upload-form").addEventListener("submit", async (e) => {
     setProgress(null);
     $("upload-error").textContent = "Falha no envio: " + (err?.message || err);
     if (pin) cleanup(pin).catch(() => {});
+    else if (fileId && !uploaded) removeLibraryFile(fileId).catch(() => {});
+    if (uploaded) $("upload-error").textContent += " O PDF ficou salvo em Meus arquivos; tente apresentar por lá.";
     renderer.unload();
   } finally {
     btn.disabled = !selectedFile;
   }
 });
+
+/** Cria uma sessão (PIN) que usa um PDF já salvo em "Meus arquivos". */
+async function createPdfSession(fileId, title, numPages, chunks) {
+  const pin = await generatePin();
+  await set(ref(db, `sessions/${pin}`), {
+    owner: user.uid,
+    title,
+    numPages,
+    currentPage: 1,
+    chunks,
+    file: fileId,
+    ready: true,
+    createdAt: serverTimestamp(),
+  });
+  await update(ref(db), {
+    [`library/${user.uid}/${fileId}/pin`]: pin,
+    [`users/${user.uid}/sessions/${pin}`]: { title, numPages, createdAt: serverTimestamp() },
+  });
+  return pin;
+}
 
 function resetUploadForm() {
   selectedFile = null;
@@ -246,7 +276,7 @@ async function reopen(pin, btn) {
     const d = snap.val();
     if (d.mode === "screen") { startScreen(pin, d.title); return; }
     btn.textContent = "Baixando…";
-    const bytes = await downloadPdf(db, pin, d.chunks, (p) => (btn.textContent = `${Math.round(p * 100)}%`));
+    const bytes = await downloadPdf(db, sessionPdfPath(pin, d), d.chunks, (p) => (btn.textContent = `${Math.round(p * 100)}%`));
     await renderer.load(bytes);
     if (d.ended) {
       await update(ref(db), {
@@ -264,6 +294,176 @@ async function reopen(pin, btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = old;
+  }
+}
+
+/* ================= MEUS ARQUIVOS (salvos por 6 meses) ================= */
+let libUnsub = null;
+let library = [];   // [{ id, title, name, size, numPages, chunks, createdAt, expiresAt, pin }]
+
+function watchLibrary() {
+  libUnsub?.();
+  libUnsub = onValue(ref(db, `library/${user.uid}`), (snap) => {
+    const items = [];
+    snap.forEach((c) => { items.push({ id: c.key, ...c.val() }); });
+    const now = serverNow();
+
+    // Arquivos com mais de 6 meses (ou envios que não terminaram há mais de 1 dia) são apagados
+    for (const f of items) {
+      const stale = f.expiresAt < now || (!f.ready && f.createdAt && f.createdAt < now - 86400000);
+      if (stale) removeLibraryFile(f.id).catch((err) => console.warn(err));
+    }
+    library = items
+      .filter((f) => f.ready && f.expiresAt >= now)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    const pill = $("files-count");
+    pill.hidden = !library.length;
+    pill.textContent = library.length;
+    renderLibrary();
+  }, (err) => {
+    console.error(err);
+    $("files-list").innerHTML = '<li class="muted">Não foi possível carregar seus arquivos. Confira se as regras do banco foram atualizadas.</li>';
+  });
+}
+
+function renderLibrary() {
+  const ul = $("files-list");
+  const q = $("files-search").value.trim().toLowerCase();
+  const list = q ? library.filter((f) => `${f.title} ${f.name || ""}`.toLowerCase().includes(q)) : library;
+  const total = library.reduce((s, f) => s + (f.size || 0), 0);
+  $("files-usage").textContent = library.length
+    ? `${library.length} arquivo${library.length > 1 ? "s" : ""} · ${formatSize(total)} usados`
+    : "";
+
+  if (!library.length) {
+    ul.innerHTML = `<li class="muted">Nenhum arquivo salvo. Os PDFs que você enviar aparecem aqui por ${LIBRARY_MONTHS} meses.</li>`;
+    return;
+  }
+  if (!list.length) {
+    ul.innerHTML = '<li class="muted">Nenhum arquivo encontrado com essa busca.</li>';
+    return;
+  }
+  const soon = serverNow() + 7 * 86400000;
+  ul.innerHTML = list.map((f) => `
+    <li>
+      <div class="f-icon" aria-hidden="true">📄</div>
+      <div class="s-info">
+        <strong>${escapeHtml(f.title)}</strong>
+        <span class="muted small">${f.numPages} slide${f.numPages > 1 ? "s" : ""} · ${f.size ? formatSize(f.size) : "?"} · enviado em ${f.createdAt ? formatDate(f.createdAt) : "?"}</span>
+        <span class="small"><span class="tag ${f.expiresAt < soon ? "warn" : ""}">Salvo até ${formatDate(f.expiresAt)}</span></span>
+      </div>
+      <div class="s-actions">
+        <button class="btn primary sm" data-fact="present" data-id="${f.id}">Apresentar</button>
+        <button class="btn ghost sm" data-fact="download" data-id="${f.id}">⬇ Baixar</button>
+        <button class="btn danger sm" data-fact="delete" data-id="${f.id}">Excluir</button>
+      </div>
+    </li>`).join("");
+}
+
+$("open-files").addEventListener("click", () => { show("files"); renderLibrary(); $("files-search").focus(); });
+$("files-back").addEventListener("click", () => show("dashboard"));
+$("files-search").addEventListener("input", renderLibrary);
+
+$("files-list").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-fact]");
+  if (!b) return;
+  const f = library.find((x) => x.id === b.dataset.id);
+  if (!f) return;
+  if (b.dataset.fact === "present") return presentFromLibrary(f, b);
+  if (b.dataset.fact === "download") return downloadFromLibrary(f, b);
+  if (b.dataset.fact === "delete") return deleteLibraryFile(f);
+});
+
+async function fetchLibraryBytes(f, btn) {
+  const old = btn.textContent;
+  btn.disabled = true;
+  try {
+    return await downloadPdf(db, libraryPdfPath(user.uid, f.id), f.chunks,
+      (p) => (btn.textContent = `${Math.round(p * 100)}%`));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+async function downloadFromLibrary(f, btn) {
+  try {
+    const bytes = await fetchLibraryBytes(f, btn);
+    downloadBytes(bytes, f.name && /\.pdf$/i.test(f.name) ? f.name : safeFileName(f.title));
+  } catch (err) {
+    console.error(err);
+    toast("Erro ao baixar: " + (err?.message || err), "err");
+  }
+}
+
+async function presentFromLibrary(f, btn) {
+  try {
+    // O arquivo já está em uma apresentação? Abre a mesma ou avisa antes de trocar o PIN.
+    const prev = f.pin ? (await get(ref(db, `sessions/${f.pin}`))).val() : null;
+    const mine = prev && prev.owner === user.uid && prev.file === f.id;
+    if (mine && !prev.ended) {
+      const bytes = await fetchLibraryBytes(f, btn);
+      await renderer.load(bytes);
+      toast(`Este arquivo já estava aberto no PIN ${f.pin}.`);
+      startPresenting(f.pin, prev.title, prev.numPages, prev.currentPage || 1);
+      return;
+    }
+    if (mine && prev.ended && prev.expiresAt > serverNow()) {
+      const ok = await modal({
+        title: "Apresentar de novo?",
+        html: `<p class="muted">O download do PIN <strong>${f.pin}</strong> está liberado até ${formatDateTime(prev.expiresAt)}. Ao apresentar de novo, um PIN novo é criado e esse link de download para de funcionar.</p>`,
+        buttons: [{ label: "Apresentar com PIN novo", value: true, cls: "primary" }, { label: "Cancelar", cls: "ghost" }],
+      });
+      if (!ok) return;
+      await purge(f.pin, user.uid);
+    }
+    const bytes = await fetchLibraryBytes(f, btn);
+    await renderer.load(bytes);
+    btn.disabled = true;
+    const pin = await createPdfSession(f.id, f.title, f.numPages, f.chunks);
+    toast(`Apresentação criada! PIN ${pin}`, "ok");
+    startPresenting(pin, f.title, f.numPages, 1);
+  } catch (err) {
+    console.error(err);
+    renderer.unload();
+    toast("Erro ao apresentar: " + (err?.message || err), "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Apaga o arquivo salvo e, se ele estiver em uma apresentação, encerra essa apresentação. */
+async function removeLibraryFile(fileId) {
+  const upd = {
+    [`library/${user.uid}/${fileId}`]: null,
+    [libraryPdfPath(user.uid, fileId)]: null,
+  };
+  const pin = (await get(ref(db, `library/${user.uid}/${fileId}/pin`))).val();
+  if (pin) {
+    const d = (await get(ref(db, `sessions/${pin}`))).val();
+    if (d && d.owner === user.uid && d.file === fileId) {
+      if (current?.pin === pin) stopPresenting(false);
+      await purge(pin, user.uid);
+    }
+  }
+  await update(ref(db), upd);
+}
+
+async function deleteLibraryFile(f) {
+  const ok = await modal({
+    title: "Excluir este arquivo?",
+    html: `<p><strong>${escapeHtml(f.title)}</strong></p>
+      <p class="muted">O PDF será apagado da plataforma para sempre. Se ele estiver sendo apresentado ou com o download liberado, o PIN também será encerrado.</p>`,
+    buttons: [{ label: "Excluir arquivo", value: true, cls: "danger" }, { label: "Cancelar", cls: "ghost" }],
+  });
+  if (!ok) return;
+  try {
+    await removeLibraryFile(f.id);
+    toast("Arquivo excluído.", "ok");
+  } catch (err) {
+    console.error(err);
+    toast("Erro ao excluir: " + (err?.message || err), "err");
   }
 }
 
@@ -615,7 +815,7 @@ async function endSession(pin) {
     } else {
       if (wasCurrent) stopPresenting();
       await cleanup(pin);
-      toast("Apresentação excluída.", "ok");
+      toast("Apresentação encerrada. O PDF continua em Meus arquivos.", "ok");
     }
   } catch (err) {
     console.error(err);
@@ -626,7 +826,7 @@ async function endSession(pin) {
 async function deleteSession(pin) {
   const ok = await modal({
     title: `Excluir a apresentação ${pin}?`,
-    html: "<p class=\"muted\">O arquivo, as anotações e o link de download serão apagados agora. Ninguém mais poderá baixar.</p>",
+    html: "<p class=\"muted\">O PIN, as anotações e o link de download serão apagados agora. Ninguém mais poderá baixar por esse link. O PDF continua em <b>Meus arquivos</b>.</p>",
     buttons: [{ label: "Excluir agora", value: true, cls: "danger" }, { label: "Cancelar", cls: "ghost" }],
   });
   if (!ok) return;

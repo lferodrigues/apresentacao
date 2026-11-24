@@ -41,6 +41,9 @@
         "live": {
           ".validate": "newData.isBoolean()"
         },
+        "file": {
+          ".validate": "newData.isString() && root.child('library/' + auth.uid + '/' + newData.val()).exists()"
+        },
         "$other": {
           ".validate": false
         }
@@ -120,6 +123,56 @@
           },
           "$other": {
             ".validate": false
+          }
+        }
+      }
+    },
+    "library": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$fid": {
+          ".validate": "newData.hasChildren(['title', 'numPages', 'chunks', 'createdAt', 'expiresAt'])",
+          "title": {
+            ".validate": "newData.isString() && newData.val().length <= 120"
+          },
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 255"
+          },
+          "size": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 31457280"
+          },
+          "numPages": {
+            ".validate": "newData.isNumber() && newData.val() >= 1"
+          },
+          "chunks": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 60"
+          },
+          "ready": {
+            ".validate": "newData.isBoolean()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "expiresAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 16070400000"
+          },
+          "pin": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "libraryFiles": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "$fid": {
+          ".read": "(auth != null && auth.uid === $uid) || (root.child('library/' + $uid + '/' + $fid + '/expiresAt').val() > now && root.child('sessions/' + root.child('library/' + $uid + '/' + $fid + '/pin').val()).child('owner').val() === $uid && root.child('sessions/' + root.child('library/' + $uid + '/' + $fid + '/pin').val()).child('file').val() === $fid && (root.child('sessions/' + root.child('library/' + $uid + '/' + $fid + '/pin').val()).child('ended').val() !== true || root.child('sessions/' + root.child('library/' + $uid + '/' + $fid + '/pin').val()).child('expiresAt').val() > now))",
+          "$chunk": {
+            ".validate": "newData.isString() && newData.val().length <= 1100000"
           }
         }
       }

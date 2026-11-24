@@ -8,6 +8,7 @@ Sistema web para apresentar um PDF em tempo real para várias pessoas ao mesmo t
 - Quando o apresentador **avança ou volta** um slide, a mudança aparece **em todas as telas** na hora.
 - O apresentador pode **escrever com lápis** e **marcar com marca-texto** (várias cores), e todos veem ao vivo.
 - Ao encerrar, o público pode **baixar o PDF por 24 horas**, por link ou **QR Code** gerados automaticamente.
+- Todo PDF enviado fica salvo em **Meus arquivos por 6 meses**: o professor vê a lista, baixa, apresenta de novo (sem reenviar) ou exclui.
 - Também dá para **espelhar a tela** (ou a câmera) **com microfone** ao vivo, com atraso de chamada de vídeo (WebRTC, como no Google Meet).
 
 Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Firebase Realtime Database** (plano gratuito Spark) e o **Firebase Authentication**.
@@ -28,6 +29,7 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 | Contador de pessoas assistindo | Layout responsivo (celular, tablet, PC, projetor) |
 | Botão para copiar o link de acesso | |
 | Lista "Minhas apresentações" para retomar depois | |
+| **Meus arquivos**: PDFs salvos por 6 meses, com busca, **Baixar**, **Apresentar** de novo e **Excluir** | |
 | Cadastro (nome, sobrenome, nascimento, e-mail, senha e foto) | |
 | Foto de perfil convertida e salva em **.webp** no banco | |
 | Tela "Esqueci minha senha" | |
@@ -74,13 +76,15 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 sessions/{PIN}           → dono, título, nº de páginas, slide atual, pronto?, encerrada?, expira em
 annotations/{PIN}/{pág}  → traços de lápis/marca-texto (cor, espessura e pontos normalizados)
 rtc/{PIN}/{visitante}    → sinalização do espelhamento (proposta, resposta e candidatos de rede)
-files/{PIN}/c0, c1, …    → o PDF em pedaços (base64)
+library/{uid}/{id}       → arquivos salvos: título, nome, tamanho, páginas, enviado em, salvo até (6 meses), PIN atual
+libraryFiles/{uid}/{id}  → o PDF em pedaços (base64)
+files/{PIN}/c0, c1, …    → PDFs antigos, enviados antes de "Meus arquivos" (pedaços em base64)
 viewers/{PIN}/{id}       → presença de cada visitante (some ao fechar a aba)
 users/{uid}/profile      → nome, sobrenome, nascimento, e-mail e foto (.webp em base64)
 users/{uid}/sessions     → lista de apresentações de cada apresentador
 ```
 
-O PDF é guardado no próprio Realtime Database (em pedaços), então **não é preciso o Firebase Storage** — que hoje exige o plano pago Blaze. Ao encerrar a apresentação, tudo é apagado.
+O PDF é guardado no próprio Realtime Database (em pedaços), então **não é preciso o Firebase Storage** — que hoje exige o plano pago Blaze. O arquivo é enviado **uma vez só**: a apresentação (PIN) apenas aponta para ele em `libraryFiles`. Ao encerrar a apresentação, o PIN, as anotações e o link de download são apagados, mas o PDF continua em **Meus arquivos** até completar 6 meses (ou até o professor excluir).
 
 ---
 
@@ -139,8 +143,9 @@ Enquanto o Apple não estiver configurado, o botão mostra a mensagem "Este mét
 5. **Anotações:** na barra sobre o slide, escolha o **lápis** (tecla **P**) ou o **marca-texto** (tecla **H**) e a cor, e desenhe com o mouse, a caneta ou o dedo. **Ctrl+Z** desfaz; a lixeira limpa o slide; **Esc** (ou a seta da barra) volta ao modo de navegação. Cada slide guarda as próprias anotações.
 6. Ao terminar, clique em **Encerrar** e escolha:
    - **Encerrar e liberar o download por 24 horas**: todas as telas mostram o QR Code e o link para baixar o PDF;
-   - **Encerrar e apagar agora**: o arquivo é apagado na hora.
+   - **Encerrar sem download**: fecha o PIN na hora (o PDF continua em Meus arquivos).
 7. Em **Minhas apresentações**, as encerradas mostram até quando o download vale, com os botões **QR e link de download**, **Reabrir** e **Excluir**.
+8. Em **📁 Meus arquivos** ficam todos os PDFs enviados nos últimos 6 meses, com a data em que cada um vence. Para cada arquivo: **Apresentar** (gera um PIN novo sem reenviar o PDF), **⬇ Baixar** e **Excluir** (apaga de vez; se estiver em uma apresentação, o PIN também é encerrado).
 
 **Espelhar tela**
 1. No painel, digite um título (opcional) e clique em **Espelhar tela**. Um PIN é gerado na hora.
@@ -169,6 +174,7 @@ Adicione `localhost` aos domínios autorizados do Firebase Authentication (norma
 
 - **Tamanho do PDF:** até 30 MB. PDFs menores carregam mais rápido para quem assiste — se possível, comprima antes (ex.: "Reduzir tamanho" no Acrobat ou ilovepdf).
 - **Plano gratuito do Firebase (Spark):** 1 GB armazenado e 10 GB de download por mês, até 100 conexões simultâneas. Cada visitante baixa o PDF uma vez. Exemplo: um PDF de 5 MB para 40 pessoas ≈ 200 MB.
+- **Meus arquivos (6 meses):** só o dono vê e baixa os próprios arquivos; o público só consegue ler um PDF enquanto a apresentação dele está aberta ou dentro das 24 h de download. Como o plano gratuito não tem tarefas agendadas, os arquivos com mais de 6 meses são apagados quando o professor abre o painel. Atenção ao espaço: o plano Spark tem **1 GB** no total — a tela Meus arquivos mostra quanto já está em uso; exclua o que não precisar mais.
 - **Segurança do PIN:** qualquer pessoa com o PIN pode ver a apresentação. Encerre as apresentações que não estiver usando — isso também libera espaço.
 - **Proteção:** o botão direito, o F12, os atalhos do inspecionar (Ctrl+Shift+I/J/C, Cmd+Option+I no Mac), Ctrl+U, salvar, imprimir e copiar ficam bloqueados. Isso barra o uso comum, mas nenhum site consegue impedir 100% o acesso às ferramentas do desenvolvedor (por exemplo, pelo menu do navegador).
 - **Download por 24 h:** o prazo é conferido pelas regras do banco com a hora do servidor, então depois de 24 h ninguém mais consegue baixar, mesmo com o link. O plano gratuito não tem tarefas agendadas: os arquivos vencidos são apagados quando o apresentador abre o painel ou quando o PIN é reutilizado.

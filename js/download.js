@@ -2,7 +2,7 @@ import { ref, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/fi
 import { db, configOk } from "./firebase.js";
 import { buildAnnotatedPdf, downloadBytes, safeFileName } from "./annotations.js";
 import {
-  isValidPin, downloadPdf, downloadLink, shareLink, copyText,
+  isValidPin, downloadPdf, sessionPdfPath, downloadLink, shareLink, copyText,
   trackServerTime, serverNow, formatDateTime, timeLeft, toast
 } from "./common.js";
 import { qrSvg } from "./vendor/qrcode.js";
@@ -79,7 +79,7 @@ function progress(p, label) {
 async function getBytes() {
   if (pdfBytes) return pdfBytes;
   progress(0, "Baixando… 0%");
-  pdfBytes = await downloadPdf(db, pin, session.chunks, (p) => progress(p, `Baixando… ${Math.round(p * 100)}%`));
+  pdfBytes = await downloadPdf(db, sessionPdfPath(pin, session), session.chunks, (p) => progress(p, `Baixando… ${Math.round(p * 100)}%`));
   return pdfBytes;
 }
 

@@ -24,12 +24,33 @@ export function base64ToBytes(b64) {
   return out;
 }
 
-/** Baixa os pedaços do PDF de files/{pin} e devolve um Uint8Array. */
-export async function downloadPdf(db, pin, chunks, onProgress) {
+/** Por quanto tempo os PDFs enviados ficam salvos em "Meus arquivos". */
+export const LIBRARY_MONTHS = 6;
+
+/** Data de expiração: hoje + 6 meses (hora do servidor). */
+export function libraryExpiry(from = serverNow()) {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() + LIBRARY_MONTHS);
+  return d.getTime();
+}
+
+/** Caminho no banco onde ficam os pedaços do PDF de uma sessão. */
+export const sessionPdfPath = (pin, d) =>
+  d?.file && d?.owner ? `libraryFiles/${d.owner}/${d.file}` : `files/${pin}`;
+
+/** Caminho dos pedaços de um arquivo salvo em "Meus arquivos". */
+export const libraryPdfPath = (uid, fileId) => `libraryFiles/${uid}/${fileId}`;
+
+/**
+ * Baixa os pedaços do PDF e devolve um Uint8Array.
+ * `src` é um PIN (arquivos antigos em files/{pin}) ou um caminho completo no banco.
+ */
+export async function downloadPdf(db, src, chunks, onProgress) {
+  const base = isValidPin(src) ? `files/${src}` : src;
   let done = 0;
   const parts = await Promise.all(
     Array.from({ length: chunks }, async (_, i) => {
-      const snap = await get(ref(db, `files/${pin}/c${i}`));
+      const snap = await get(ref(db, `${base}/c${i}`));
       if (!snap.exists()) throw new Error("Arquivo incompleto no servidor.");
       const bytes = base64ToBytes(snap.val());
       done++;
@@ -58,6 +79,12 @@ export function trackServerTime(db) {
   onValue(ref(db, ".info/serverTimeOffset"), (s) => { serverOffset = s.val() || 0; });
 }
 export const serverNow = () => Date.now() + serverOffset;
+
+export const formatDate = (ms) =>
+  new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+export const formatSize = (bytes) =>
+  bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 export const formatDateTime = (ms) =>
   new Date(ms).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });

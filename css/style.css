@@ -657,3 +657,24 @@ input[type="date"] {
   .screen-controls .btn.nav { min-width: 0; flex: 1 1 45%; }
   .screen-controls .btn.ghost { display: inline-flex; }
 }
+
+/* ---------- Meus arquivos (PDFs salvos por 6 meses) ---------- */
+.files-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.files-cta h2 { margin-bottom: 4px; }
+.files-cta p { margin: 0; }
+.count-pill {
+  display: inline-block; min-width: 1.6em; padding: 1px 7px; margin-left: 4px; border-radius: 999px;
+  background: rgba(255, 255, 255, .22); font-size: .78rem; font-weight: 700;
+}
+.files-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.files-head h2 { margin: 0; }
+.files-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
+.files-tools input {
+  flex: 1; min-width: 200px; max-width: 360px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface-2); color: inherit; font: inherit;
+}
+.f-icon { font-size: 1.8rem; line-height: 1; }
+.files-list .s-info { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 2px; }
+.files-list .s-info strong { word-break: break-word; }
+.tag.warn { background: rgba(239, 68, 68, .15); color: var(--danger); }
+.tag.live { background: rgba(76, 187, 95, .15); color: var(--accent-light); }
