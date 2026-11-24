@@ -6,6 +6,8 @@ Sistema web para apresentar um PDF em tempo real para várias pessoas ao mesmo t
 - O **apresentador** entra com usuário e senha, envia um **PDF** e recebe um **PIN de 4 números**.
 - Os **visitantes** abrem o site, digitam o PIN e veem a apresentação.
 - Quando o apresentador **avança ou volta** um slide, a mudança aparece **em todas as telas** na hora.
+- O apresentador pode **escrever com lápis** e **marcar com marca-texto** (várias cores), e todos veem ao vivo.
+- Ao encerrar, o público pode **baixar o PDF por 24 horas**, por link ou **QR Code** gerados automaticamente.
 
 Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Firebase Realtime Database** (plano gratuito Spark) e o **Firebase Authentication**.
 
@@ -29,8 +31,12 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 | Foto de perfil convertida e salva em **.webp** no banco | |
 | Tela "Esqueci minha senha" | |
 | Botão de perfil com opção **Sair** | |
-| Encerrar apresentação (apaga o arquivo do banco) | |
+| **Lápis** (6 cores) e **marca-texto** (6 cores) sobre o slide, com desfazer e limpar | Anotações aparecem ao vivo, no lugar certo em qualquer tamanho de tela |
+| Encerrar e **liberar o download por 24 h**, ou encerrar e apagar na hora | Tela final com **QR Code**, link e botão **Baixar PDF** |
+| Tela final com QR Code grande para o público escanear | Página de download: PDF **original** ou **com as anotações** |
+| Lista mostra até quando o download fica disponível (com QR e link) | Contagem do tempo restante; link expira sozinho |
 | Controle de mais de um dispositivo (ex.: notebook no projetor + celular como controle remoto) | |
+| Apresentações vencidas são apagadas automaticamente | |
 
 ## Estrutura
 
@@ -38,6 +44,7 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 ├── index.html            # Página inicial: escolher Apresentação ou Administrador
 ├── assistir.html         # Visitante: digita o PIN e assiste
 ├── apresentador.html     # Apresentador: login, upload e controle
+├── download.html         # Download do PDF (link/QR Code, válido por 24 h)
 ├── css/style.css         # Estilos (tema escuro, responsivo)
 ├── js/
 │   ├── firebase-config.js  # ⚠️ suas chaves do Firebase vão aqui
@@ -47,6 +54,9 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 │   ├── image.js            # Converte a foto de perfil para WebP
 │   ├── protect.js          # Bloqueia botão direito, F12/inspecionar, copiar e imprimir
 │   ├── pdf-render.js       # Renderização dos slides com PDF.js
+│   ├── annotations.js      # Lápis/marca-texto e geração do PDF com anotações
+│   ├── download.js         # Lógica da página de download
+│   ├── vendor/qrcode.js    # Gerador de QR Code (sem depender de internet)
 │   ├── viewer.js           # Lógica do visitante
 │   └── presenter.js        # Lógica do apresentador
 └── database.rules.json   # Regras de segurança do Realtime Database
@@ -55,7 +65,8 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 ### Como os dados ficam no banco
 
 ```
-sessions/{PIN}           → dono, título, nº de páginas, slide atual, pronto?
+sessions/{PIN}           → dono, título, nº de páginas, slide atual, pronto?, encerrada?, expira em
+annotations/{PIN}/{pág}  → traços de lápis/marca-texto (cor, espessura e pontos normalizados)
 files/{PIN}/c0, c1, …    → o PDF em pedaços (base64)
 viewers/{PIN}/{id}       → presença de cada visitante (some ao fechar a aba)
 users/{uid}/profile      → nome, sobrenome, nascimento, e-mail e foto (.webp em base64)
@@ -118,11 +129,16 @@ Enquanto o Apple não estiver configurado, o botão mostra a mensagem "Este mét
 2. Escolha o PDF, dê um título e clique em **Enviar e gerar PIN**.
 3. Mostre o PIN (ou envie o link) para o público.
 4. Navegue com **← →**, **espaço**, os botões, tocando nas laterais do slide ou deslizando o dedo. **F** = tela cheia.
-5. Ao terminar, clique em **Encerrar**.
+5. **Anotações:** na barra sobre o slide, escolha o **lápis** (tecla **P**) ou o **marca-texto** (tecla **H**) e a cor, e desenhe com o mouse, a caneta ou o dedo. **Ctrl+Z** desfaz; a lixeira limpa o slide; **Esc** (ou a seta da barra) volta ao modo de navegação. Cada slide guarda as próprias anotações.
+6. Ao terminar, clique em **Encerrar** e escolha:
+   - **Encerrar e liberar o download por 24 horas**: todas as telas mostram o QR Code e o link para baixar o PDF;
+   - **Encerrar e apagar agora**: o arquivo é apagado na hora.
+7. Em **Minhas apresentações**, as encerradas mostram até quando o download vale, com os botões **QR e link de download**, **Reabrir** e **Excluir**.
 
 **Visitante**
 1. Abra `https://lferodrigues.github.io/apresentacao/` e clique em **Apresentação** (ou abra direto `.../assistir.html`).
 2. Digite o PIN e clique em **Assistir**.
+3. Quando o apresentador encerrar, aparece a tela com o **QR Code** e o botão **Baixar PDF**. Na página de download dá para escolher o PDF **original** ou **com as anotações**. O link vale por 24 horas.
 
 ## Testar no computador (opcional)
 
@@ -141,6 +157,8 @@ Adicione `localhost` aos domínios autorizados do Firebase Authentication (norma
 - **Plano gratuito do Firebase (Spark):** 1 GB armazenado e 10 GB de download por mês, até 100 conexões simultâneas. Cada visitante baixa o PDF uma vez. Exemplo: um PDF de 5 MB para 40 pessoas ≈ 200 MB.
 - **Segurança do PIN:** qualquer pessoa com o PIN pode ver a apresentação. Encerre as apresentações que não estiver usando — isso também libera espaço.
 - **Proteção:** o botão direito, o F12, os atalhos do inspecionar (Ctrl+Shift+I/J/C, Cmd+Option+I no Mac), Ctrl+U, salvar, imprimir e copiar ficam bloqueados. Isso barra o uso comum, mas nenhum site consegue impedir 100% o acesso às ferramentas do desenvolvedor (por exemplo, pelo menu do navegador).
+- **Download por 24 h:** o prazo é conferido pelas regras do banco com a hora do servidor, então depois de 24 h ninguém mais consegue baixar, mesmo com o link. O plano gratuito não tem tarefas agendadas: os arquivos vencidos são apagados quando o apresentador abre o painel ou quando o PIN é reutilizado.
+- **PDF com anotações:** é montado no navegador de quem baixa, com a biblioteca pdf-lib (carregada da CDN jsDelivr). Se algo falhar, o PDF original é baixado.
 - **Foto de perfil:** é recortada em quadrado, reduzida para 320×320 px e salva como WebP (normalmente 10–40 KB) direto no Realtime Database, sem precisar do Firebase Storage.
 - **iPhone:** o Safari não tem tela cheia "de verdade" para páginas; o sistema usa um modo que ocupa a tela toda.
 - Para restringir o envio a **um único usuário**, troque nas regras `auth != null` por `auth.uid === 'SEU_UID'` (o UID aparece na aba Usuários do Authentication).
@@ -149,6 +167,8 @@ Adicione `localhost` aos domínios autorizados do Firebase Authentication (norma
 
 - [Firebase](https://firebase.google.com) — Authentication e Realtime Database (SDK modular 10.12, via CDN)
 - [PDF.js](https://mozilla.github.io/pdf.js/) 4.4 — renderização dos slides
+- [pdf-lib](https://pdf-lib.js.org/) 1.17 — PDF com anotações
+- QRCode for JavaScript (Kazuhiko Arase, licença MIT), empacotado em `js/vendor/qrcode.js`
 - HTML, CSS e JavaScript puros (sem build)
 
 ---

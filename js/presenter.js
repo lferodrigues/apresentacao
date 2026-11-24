@@ -1,12 +1,16 @@
 import {
-  ref, get, set, update, onValue, serverTimestamp
+  ref, get, set, update, remove, push, onValue, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { db, configOk } from "./firebase.js";
 import { SlideRenderer } from "./pdf-render.js";
 import { initAccount } from "./account.js";
 import {
-  CHUNK_SIZE, MAX_FILE_MB, bytesToBase64, downloadPdf, shareLink,
-  toggleFullscreen, onSwipe, toast, copyText, escapeHtml
+  AnnotationLayer, PEN_COLORS, HL_COLORS, WIDTH, MAX_POINTS, encodePts, strokesFromSnap
+} from "./annotations.js";
+import {
+  CHUNK_SIZE, MAX_FILE_MB, bytesToBase64, downloadPdf, shareLink, downloadLink,
+  toggleFullscreen, onSwipe, toast, copyText, escapeHtml,
+  trackServerTime, serverNow, formatDateTime, timeLeft, renderDownloadBox, modal, DOWNLOAD_HOURS
 } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +21,8 @@ const sections = {
 
 const stage = $("p-stage"), pMsg = $("p-msg");
 const renderer = new SlideRenderer($("p-canvas"), stage);
+const ann = new AnnotationLayer($("p-ann"));
+renderer.onLayout = (w, h, dpr) => ann.resize(w, h, dpr);
 
 let user = null;
 let listUnsub = null;
@@ -34,6 +40,7 @@ if (!configOk) {
   show("login");
   document.querySelectorAll("#login button").forEach((b) => (b.disabled = true));
 } else {
+  trackServerTime(db);
   initAccount({
     show,
     onReady(u) {
@@ -90,6 +97,10 @@ async function generatePin() {
     const pin = String(n).padStart(4, "0");
     const snap = await get(ref(db, `sessions/${pin}`));
     if (!snap.exists()) return pin;
+    const d = snap.val();
+    if (d.ended && d.expiresAt && d.expiresAt < serverNow()) {
+      try { await purge(pin); return pin; } catch (err) { console.warn(err); }
+    }
   }
   throw new Error("Não há PINs livres no momento. Encerre apresentações antigas.");
 }
@@ -164,21 +175,35 @@ function watchMyList() {
     const items = [];
     snap.forEach((c) => { items.push({ pin: c.key, ...c.val() }); });
     items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    if (!items.length) {
+
+    // Downloads vencidos: apaga do banco automaticamente
+    const now = serverNow();
+    for (const s of items.filter((s) => s.ended && s.expiresAt && s.expiresAt < now)) {
+      purgeMine(s.pin).catch((err) => console.warn(err));
+    }
+    const list = items.filter((s) => !(s.ended && s.expiresAt && s.expiresAt < now));
+
+    if (!list.length) {
       ul.innerHTML = '<li class="muted">Nenhuma apresentação ativa. Envie um PDF acima.</li>';
       return;
     }
-    ul.innerHTML = items.map((s) => `
-      <li>
+    ul.innerHTML = list.map((s) => `
+      <li class="${s.ended ? "is-ended" : ""}">
         <div class="s-pin">${s.pin}</div>
         <div class="s-info">
           <strong>${escapeHtml(s.title)}</strong>
-          <span class="muted small">${s.numPages || "?"} slides · ${s.createdAt ? new Date(s.createdAt).toLocaleString("pt-BR") : ""}</span>
+          <span class="muted small">${s.ended
+            ? `<span class="tag">Encerrada · download até ${formatDateTime(s.expiresAt)}</span>`
+            : `${s.numPages || "?"} slides · ${s.createdAt ? new Date(s.createdAt).toLocaleString("pt-BR") : ""}`}</span>
         </div>
         <div class="s-actions">
-          <button class="btn primary sm" data-act="open" data-pin="${s.pin}">Apresentar</button>
-          <button class="btn ghost sm" data-act="copy" data-pin="${s.pin}">Link</button>
-          <button class="btn danger sm" data-act="end" data-pin="${s.pin}">Encerrar</button>
+          ${s.ended
+            ? `<button class="btn primary sm" data-act="qr" data-pin="${s.pin}">QR e link de download</button>
+               <button class="btn ghost sm" data-act="open" data-pin="${s.pin}">Reabrir</button>
+               <button class="btn danger sm" data-act="delete" data-pin="${s.pin}">Excluir</button>`
+            : `<button class="btn primary sm" data-act="open" data-pin="${s.pin}">Apresentar</button>
+               <button class="btn ghost sm" data-act="copy" data-pin="${s.pin}">Link</button>
+               <button class="btn danger sm" data-act="end" data-pin="${s.pin}">Encerrar</button>`}
         </div>
       </li>`).join("");
   });
@@ -188,10 +213,21 @@ $("my-list").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const pin = b.dataset.pin;
-  if (b.dataset.act === "copy") return copyText(shareLink(pin));
-  if (b.dataset.act === "end") return endSession(pin);
-  if (b.dataset.act === "open") return reopen(pin, b);
+  const act = b.dataset.act;
+  if (act === "copy") return copyText(shareLink(pin));
+  if (act === "end") return endSession(pin);
+  if (act === "delete") return deleteSession(pin);
+  if (act === "open") return reopen(pin, b);
+  if (act === "qr") return showQrModal(pin);
 });
+
+async function showQrModal(pin) {
+  const d = (await get(ref(db, `sessions/${pin}`))).val();
+  if (!d) return toast("Essa apresentação não existe mais.", "err");
+  const box = document.createElement("div");
+  renderDownloadBox(box, pin, { title: d.title, expiresAt: d.expiresAt, compact: true });
+  modal({ title: `Download · PIN ${pin}`, content: box, buttons: [{ label: "Fechar", cls: "ghost" }] });
+}
 
 async function reopen(pin, btn) {
   btn.disabled = true;
@@ -207,7 +243,16 @@ async function reopen(pin, btn) {
     btn.textContent = "Baixando…";
     const bytes = await downloadPdf(db, pin, d.chunks, (p) => (btn.textContent = `${Math.round(p * 100)}%`));
     await renderer.load(bytes);
-    startPresenting(pin, d.title, d.numPages, d.currentPage || 1, false);
+    if (d.ended) {
+      await update(ref(db), {
+        [`sessions/${pin}/ended`]: null,
+        [`sessions/${pin}/endedAt`]: null,
+        [`sessions/${pin}/expiresAt`]: null,
+        [`users/${user.uid}/sessions/${pin}/ended`]: null,
+        [`users/${user.uid}/sessions/${pin}/expiresAt`]: null,
+      });
+    }
+    startPresenting(pin, d.title, d.numPages, d.currentPage || 1);
   } catch (err) {
     console.error(err);
     toast("Erro ao abrir: " + (err?.message || err), "err");
@@ -218,9 +263,9 @@ async function reopen(pin, btn) {
 }
 
 /* ================= APRESENTAÇÃO ================= */
-function startPresenting(pin, title, numPages, page, _fresh) {
+function startPresenting(pin, title, numPages, page) {
   stopPresenting(false);
-  current = { pin, title, numPages, page, unsubs: [] };
+  current = { pin, title, numPages, page, unsubs: [], annUnsub: null, ended: false };
   $("p-pin").textContent = pin;
   $("p-title").textContent = title;
   document.title = `PIN ${pin} · ${title}`;
@@ -228,6 +273,7 @@ function startPresenting(pin, title, numPages, page, _fresh) {
   show("present");
   renderer.show(page);
   updateIndicator();
+  watchAnnotations();
 
   // Contador de visitantes
   current.unsubs.push(onValue(ref(db, `viewers/${pin}`), (s) => {
@@ -242,18 +288,29 @@ function startPresenting(pin, title, numPages, page, _fresh) {
       stopPresenting();
       return;
     }
-    const p = s.val().currentPage || 1;
+    const d = s.val();
+    if (d.ended) { showEnded(d); return; }
+    if (current.ended) hideEnded();
+    const p = d.currentPage || 1;
     if (p !== current.page) {
       current.page = p;
       renderer.show(p);
       updateIndicator();
+      watchAnnotations();
     }
   }));
 }
 
 function stopPresenting(goDashboard = true) {
-  if (current) current.unsubs.forEach((u) => u());
+  if (current) {
+    current.unsubs.forEach((u) => u());
+    current.annUnsub?.();
+  }
   current = null;
+  drawing = null;
+  hideEnded();
+  ann.clear();
+  setTool("nav");
   renderer.unload();
   if (document.fullscreenElement) document.exitFullscreen?.();
   stage.classList.remove("fake-fs");
@@ -272,12 +329,14 @@ function updateIndicator() {
 }
 
 function goTo(n) {
-  if (!current) return;
+  if (!current || current.ended) return;
   n = Math.min(Math.max(1, n), current.numPages);
   if (n === current.page) return;
+  finishStroke();
   current.page = n;
   renderer.show(n);
   updateIndicator();
+  watchAnnotations();
   update(ref(db, `sessions/${current.pin}`), { currentPage: n })
     .catch((err) => { console.error(err); toast("Falha ao sincronizar o slide.", "err"); });
 }
@@ -296,17 +355,21 @@ $("p-copy").addEventListener("click", () => current && copyText(shareLink(curren
 $("p-back").addEventListener("click", () => stopPresenting());
 $("p-end").addEventListener("click", () => current && endSession(current.pin));
 
-// Clique/toque: metade esquerda volta, metade direita avança
+// Clique/toque: metade esquerda volta, metade direita avança (só no modo navegar)
 stage.addEventListener("click", (e) => {
-  if (!current || e.target.closest(".fs-controls")) return;
+  if (!current || current.ended || tool !== "nav") return;
+  if (e.target.closest(".fs-controls, .ann-toolbar, .stage-msg")) return;
   const r = stage.getBoundingClientRect();
   (e.clientX - r.left) < r.width * 0.35 ? prev() : next();
 });
-onSwipe(stage, next, prev);
+onSwipe(stage, () => tool === "nav" && next(), () => tool === "nav" && prev());
 
 document.addEventListener("keydown", (e) => {
-  if (!current || sections.present.hidden) return;
+  if (!current || sections.present.hidden || current.ended) return;
+  if (document.querySelector(".modal-backdrop, dialog[open]")) return;
   if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+  if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   switch (e.key) {
     case "ArrowRight": case "ArrowDown": case "PageDown": case " ": case "Enter":
       e.preventDefault(); next(); break;
@@ -315,29 +378,249 @@ document.addEventListener("keydown", (e) => {
     case "Home": e.preventDefault(); goTo(1); break;
     case "End": e.preventDefault(); goTo(current.numPages); break;
     case "f": case "F": toggleFullscreen(stage); break;
+    case "p": case "P": setTool("pen"); break;
+    case "h": case "H": setTool("hl"); break;
+    case "Escape": setTool("nav"); break;
   }
 });
 
+/* ================= ANOTAÇÕES ================= */
+let tool = "nav";
+const colors = { pen: PEN_COLORS[0], hl: HL_COLORS[0] };
+let drawing = null;      // traço em andamento { key, tool, color, w, points }
+let syncTimer = null;
+
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("#ann-toolbar [data-tool]").forEach((b) =>
+    b.classList.toggle("active", b.dataset.tool === t));
+  stage.classList.toggle("drawing", t !== "nav");
+  stage.classList.toggle("clickable", t === "nav");
+  renderSwatches();
+}
+
+function renderSwatches() {
+  const box = $("ann-colors");
+  const list = tool === "hl" ? HL_COLORS : PEN_COLORS;
+  const active = tool === "hl" ? colors.hl : colors.pen;
+  box.hidden = tool === "nav";
+  box.innerHTML = list.map((c) => `
+    <button class="swatch ${tool === "hl" ? "hl" : ""} ${c === active ? "active" : ""}" type="button"
+      data-color="${c}" style="--sw:${c}" aria-label="Cor ${c}" title="${tool === "hl" ? "Marca-texto" : "Lápis"} ${c}"></button>`).join("");
+}
+
+$("ann-toolbar").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const t = e.target.closest("[data-tool]");
+  if (t) return setTool(t.dataset.tool);
+  const sw = e.target.closest("[data-color]");
+  if (sw) {
+    colors[tool === "hl" ? "hl" : "pen"] = sw.dataset.color;
+    renderSwatches();
+  }
+});
+$("ann-toolbar").addEventListener("pointerdown", (e) => e.stopPropagation());
+$("ann-undo").addEventListener("click", undo);
+$("ann-clear").addEventListener("click", clearPage);
+setTool("nav");
+
+function watchAnnotations() {
+  if (!current) return;
+  current.annUnsub?.();
+  const { pin, page } = current;
+  ann.setStrokes([]);
+  current.annUnsub = onValue(ref(db, `annotations/${pin}/${page}`), (snap) => {
+    if (!current || current.pin !== pin || current.page !== page) return;
+    current.strokes = strokesFromSnap(snap);
+    ann.setStrokes(current.strokes);
+  });
+}
+
+function annPath() { return `annotations/${current.pin}/${current.page}`; }
+
+function syncStroke(s) {
+  if (!current) return;
+  set(ref(db, `${annPath()}/${s.key}`), {
+    tool: s.tool, color: s.color, w: s.w, pts: encodePts(s.points),
+  }).catch((err) => { console.error(err); toast("Falha ao salvar a anotação.", "err"); });
+}
+
+stage.addEventListener("pointerdown", (e) => {
+  if (!current || current.ended || tool === "nav" || e.button > 0) return;
+  if (e.target.closest(".ann-toolbar, .fs-controls")) return;
+  const p = ann.toNorm(e.clientX, e.clientY);
+  if (!p) return;
+  e.preventDefault();
+  stage.setPointerCapture?.(e.pointerId);
+  drawing = {
+    key: push(ref(db, annPath())).key,
+    tool, color: colors[tool], w: WIDTH[tool], points: [p],
+  };
+  ann.setLive(drawing);
+});
+
+stage.addEventListener("pointermove", (e) => {
+  if (!drawing) return;
+  const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  for (const ev of events) {
+    const p = ann.toNorm(ev.clientX, ev.clientY);
+    const last = drawing.points[drawing.points.length - 1];
+    if (p && Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.0015) drawing.points.push(p);
+  }
+  ann.setLive(drawing);
+  // Envia o traço parcial a cada 120 ms para os visitantes verem ao vivo
+  if (!syncTimer) {
+    syncTimer = setTimeout(() => {
+      syncTimer = null;
+      if (drawing) syncStroke(drawing);
+    }, 120);
+  }
+  // Traços muito longos são divididos em partes
+  if (drawing.points.length >= MAX_POINTS) {
+    const lastPt = drawing.points[drawing.points.length - 1];
+    const { tool: t, color, w } = drawing;
+    finishStroke();
+    drawing = { key: push(ref(db, annPath())).key, tool: t, color, w, points: [lastPt] };
+  }
+});
+
+function finishStroke() {
+  clearTimeout(syncTimer); syncTimer = null;
+  if (!drawing) return;
+  const s = drawing;
+  drawing = null;
+  // mantém o traço na tela até o banco confirmar
+  current?.strokes?.push({ key: s.key, tool: s.tool, color: s.color, w: s.w, points: s.points });
+  ann.setLive(null);
+  if (current?.strokes) ann.setStrokes(current.strokes);
+  syncStroke(s);
+}
+["pointerup", "pointercancel", "lostpointercapture"].forEach((ev) =>
+  stage.addEventListener(ev, finishStroke));
+
+function undo() {
+  if (!current) return;
+  const list = current.strokes || [];
+  const last = list[list.length - 1];
+  if (!last) return toast("Nada para desfazer neste slide.");
+  list.pop();
+  ann.setStrokes(list);
+  remove(ref(db, `${annPath()}/${last.key}`)).catch((err) => console.error(err));
+}
+
+function clearPage() {
+  if (!current || !(current.strokes || []).length) return toast("Este slide não tem anotações.");
+  if (!confirm("Apagar todas as anotações deste slide?")) return;
+  current.strokes = [];
+  ann.setStrokes([]);
+  remove(ref(db, annPath())).catch((err) => console.error(err));
+}
+
+/* ================= FIM: TELA DE DOWNLOAD ================= */
+function showEnded(d) {
+  if (!current) return;
+  finishStroke();
+  setTool("nav");
+  current.ended = true;
+  stage.classList.add("ended");
+  sections.present.classList.add("is-ended");
+  pMsg.hidden = false;
+  renderDownloadBox(pMsg, current.pin, {
+    title: d.title,
+    expiresAt: d.expiresAt,
+    backLabel: "Voltar ao painel",
+    onBack: () => stopPresenting(),
+  });
+  $("p-viewers").textContent = "0";
+}
+
+function hideEnded() {
+  if (current) current.ended = false;
+  stage.classList.remove("ended");
+  sections.present.classList.remove("is-ended");
+  pMsg.hidden = true;
+  pMsg.innerHTML = "";
+}
+
 /* ================= ENCERRAR ================= */
-async function cleanup(pin) {
-  // Uma única atualização remove tudo de forma atômica
-  await update(ref(db), {
+/** Apaga tudo de uma apresentação (arquivo, anotações, visitantes e sessão). */
+async function purge(pin, ownerUid) {
+  const upd = {
     [`viewers/${pin}`]: null,
+    [`annotations/${pin}`]: null,
     [`files/${pin}`]: null,
     [`sessions/${pin}`]: null,
-    [`users/${user.uid}/sessions/${pin}`]: null,
+  };
+  if (ownerUid) upd[`users/${ownerUid}/sessions/${pin}`] = null;
+  await update(ref(db), upd);
+}
+
+async function cleanup(pin) {
+  await purge(pin, user.uid);
+}
+
+/** Remove uma apresentação minha (ou só o item da lista, se o PIN já for de outra pessoa). */
+async function purgeMine(pin) {
+  const d = (await get(ref(db, `sessions/${pin}`))).val();
+  if (d && d.owner === user.uid) return cleanup(pin);
+  await update(ref(db), { [`users/${user.uid}/sessions/${pin}`]: null });
+}
+
+function askEnd(pin) {
+  const dlg = $("end-dialog");
+  $("end-pin").textContent = pin;
+  return new Promise((resolve) => {
+    dlg.returnValue = "cancel";
+    dlg.addEventListener("close", () => resolve(dlg.returnValue || "cancel"), { once: true });
+    dlg.showModal();
   });
 }
 
 async function endSession(pin) {
-  if (!confirm(`Encerrar a apresentação do PIN ${pin}? Os visitantes deixarão de ver os slides e o arquivo será apagado.`)) return;
+  const choice = await askEnd(pin);
+  if (choice === "cancel") return;
+
   try {
     const wasCurrent = current?.pin === pin;
-    if (wasCurrent) stopPresenting();
-    await cleanup(pin);
-    toast("Apresentação encerrada.", "ok");
+    if (choice === "finish") {
+      finishStroke();
+      const expiresAt = serverNow() + DOWNLOAD_HOURS * 3600 * 1000;
+      await update(ref(db), {
+        [`sessions/${pin}/ended`]: true,
+        [`sessions/${pin}/endedAt`]: serverTimestamp(),
+        [`sessions/${pin}/expiresAt`]: expiresAt,
+        [`users/${user.uid}/sessions/${pin}/ended`]: true,
+        [`users/${user.uid}/sessions/${pin}/expiresAt`]: expiresAt,
+      });
+      // Se estiver apresentando, a própria tela vira a tela de download (com QR Code)
+      if (!wasCurrent) {
+        toast(`Encerrada. Download liberado até ${formatDateTime(expiresAt)}.`, "ok");
+        showQrModal(pin);
+      }
+    } else {
+      if (wasCurrent) stopPresenting();
+      await cleanup(pin);
+      toast("Apresentação excluída.", "ok");
+    }
   } catch (err) {
     console.error(err);
     toast("Erro ao encerrar: " + (err?.message || err), "err");
+  }
+}
+
+async function deleteSession(pin) {
+  const ok = await modal({
+    title: `Excluir a apresentação ${pin}?`,
+    html: "<p class=\"muted\">O arquivo, as anotações e o link de download serão apagados agora. Ninguém mais poderá baixar.</p>",
+    buttons: [{ label: "Excluir agora", value: true, cls: "danger" }, { label: "Cancelar", cls: "ghost" }],
+  });
+  if (!ok) return;
+  try {
+    if (current?.pin === pin) stopPresenting();
+    await cleanup(pin);
+    toast("Apresentação excluída.", "ok");
+  } catch (err) {
+    console.error(err);
+    toast("Erro ao excluir: " + (err?.message || err), "err");
   }
 }

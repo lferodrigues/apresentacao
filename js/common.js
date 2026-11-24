@@ -1,4 +1,5 @@
-import { ref, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { ref, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { qrSvg } from "./vendor/qrcode.js";
 
 // Tamanho de cada pedaço do PDF gravado no Realtime Database (bytes brutos).
 // ~700 KB viram ~950 KB em base64, bem abaixo do limite de 10 MB por escrita.
@@ -45,6 +46,81 @@ export async function downloadPdf(db, pin, chunks, onProgress) {
 
 /** Link público para visitantes entrarem direto com o PIN. */
 export const shareLink = (pin) => new URL(`./assistir.html?pin=${pin}`, location.href).href;
+
+/** Link da página de download do PDF (válido por 24 h após o fim). */
+export const downloadLink = (pin) => new URL(`./download.html?pin=${pin}`, location.href).href;
+
+export const DOWNLOAD_HOURS = 24;
+
+/* ---------- Hora do servidor (evita erro com relógio do aparelho) ---------- */
+let serverOffset = 0;
+export function trackServerTime(db) {
+  onValue(ref(db, ".info/serverTimeOffset"), (s) => { serverOffset = s.val() || 0; });
+}
+export const serverNow = () => Date.now() + serverOffset;
+
+export const formatDateTime = (ms) =>
+  new Date(ms).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+export function timeLeft(ms) {
+  const diff = Math.max(0, ms - serverNow());
+  const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}min` : `${m} min`;
+}
+
+/**
+ * Monta o bloco de download (QR Code + link + botões) dentro de `el`.
+ * opts: { title, expiresAt, backLabel, onBack, compact }
+ */
+export function renderDownloadBox(el, pin, opts = {}) {
+  const link = downloadLink(pin);
+  el.innerHTML = `
+    <div class="dl-box ${opts.compact ? "compact" : ""}">
+      <span class="badge ok-badge">APRESENTAÇÃO ENCERRADA</span>
+      <h2>${escapeHtml(opts.title || "Baixe a apresentação")}</h2>
+      <p class="muted">Aponte a câmera para o QR Code ou use o link para baixar o PDF.
+        ${opts.expiresAt ? `<br>Disponível até <strong>${formatDateTime(opts.expiresAt)}</strong> (${timeLeft(opts.expiresAt)}).` : ""}</p>
+      <div class="qr">${qrSvg(link, { margin: 2 })}</div>
+      <div class="dl-link"><code>${escapeHtml(link)}</code></div>
+      <div class="dl-actions">
+        <a class="btn primary" href="${link}">⬇ Baixar PDF</a>
+        <button class="btn ghost" type="button" data-copy>🔗 Copiar link</button>
+        ${opts.onBack ? `<button class="btn ghost" type="button" data-back>${escapeHtml(opts.backLabel || "Voltar")}</button>` : ""}
+      </div>
+    </div>`;
+  el.querySelector("[data-copy]").addEventListener("click", () => copyText(link));
+  if (opts.onBack) el.querySelector("[data-back]").addEventListener("click", opts.onBack);
+}
+
+/* ---------- Janela de escolha (modal) ---------- */
+export function modal({ title, html = "", buttons = [], content }) {
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "modal-backdrop";
+    back.innerHTML = `
+      <div class="modal card" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+        <h2>${escapeHtml(title)}</h2>
+        <div class="modal-body">${html}</div>
+        <div class="modal-actions"></div>
+      </div>`;
+    if (content) back.querySelector(".modal-body").appendChild(content);
+    const actions = back.querySelector(".modal-actions");
+    const close = (v) => { back.remove(); document.removeEventListener("keydown", onKey, true); resolve(v); };
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(null); } };
+    for (const b of buttons) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `btn ${b.cls || "ghost"}`;
+      btn.textContent = b.label;
+      btn.addEventListener("click", () => close(b.value ?? null));
+      actions.appendChild(btn);
+    }
+    back.addEventListener("click", (e) => { if (e.target === back) close(null); });
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(back);
+    actions.querySelector("button")?.focus();
+  });
+}
 
 /* ---------- Tela cheia (com alternativa para iPhone) ---------- */
 export function isFullscreen(el) {

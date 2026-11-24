@@ -491,3 +491,124 @@ input[type="date"] {
   .profile-btn { padding: 3px; }
   .profile-btn .chev { display: none; }
 }
+
+/* =====================================================================
+   ANOTAÇÕES (LÁPIS E MARCA-TEXTO)
+   ===================================================================== */
+.stage canvas.ann {
+  position: absolute; inset: 0; margin: auto; pointer-events: none;
+  box-shadow: none; width: 0; height: 0;
+}
+.stage.drawing { cursor: crosshair; touch-action: none; }
+.stage.drawing canvas { touch-action: none; }
+
+.ann-toolbar {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100% - 24px); padding: 6px; border-radius: 14px;
+  background: rgba(15, 15, 15, .82); border: 1px solid rgba(255, 255, 255, .1);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5); cursor: default;
+}
+.tool {
+  width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px;
+  border: 1px solid transparent; background: transparent; color: #d4d4d4; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.tool:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.tool.active { background: var(--green-grad); color: #fff; box-shadow: 0 4px 14px rgba(76, 187, 95, .35); }
+.tb-sep { width: 1px; height: 24px; background: rgba(255, 255, 255, .12); margin: 0 4px; }
+.swatches { display: flex; gap: 5px; align-items: center; }
+.swatches[hidden] + .tb-sep { display: none; }
+.swatch {
+  width: 24px; height: 24px; border-radius: 50%; cursor: pointer; padding: 0;
+  background: var(--sw); border: 2px solid rgba(255, 255, 255, .25);
+  transition: transform .12s;
+}
+.swatch.hl { border-radius: 6px; opacity: .85; }
+.swatch:hover { transform: scale(1.12); }
+.swatch.active { outline: 2px solid #fff; outline-offset: 2px; transform: scale(1.08); }
+
+.stage.ended .ann-toolbar, .stage.ended .fs-controls, .stage.ended canvas { display: none !important; }
+
+/* =====================================================================
+   DOWNLOAD (QR CODE + LINK)
+   ===================================================================== */
+.stage-msg { overflow: auto; }
+.stage.ended .stage-msg { background: radial-gradient(800px 400px at 50% 0%, rgba(76, 187, 95, .12), transparent 70%), #050505; }
+.dl-box { display: grid; justify-items: center; gap: 12px; max-width: 520px; margin: auto; color: var(--text); text-align: center; }
+.dl-box h2 { font-size: clamp(1.2rem, 3vw, 1.6rem); margin: 0; }
+.dl-box p { margin: 0; }
+.dl-box.compact { gap: 10px; }
+.ok-badge { background: rgba(76, 187, 95, .15); color: var(--accent-light); }
+.qr {
+  width: min(240px, 60vw); aspect-ratio: 1; padding: 10px; border-radius: 16px; background: #fff;
+  box-shadow: 0 10px 40px rgba(76, 187, 95, .25);
+}
+.stage .qr { width: min(260px, 38vh, 60vw); }
+.qr svg { width: 100%; height: 100%; display: block; }
+.dl-link code {
+  display: block; max-width: min(460px, 80vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: .8rem; padding: 6px 10px; color: var(--muted);
+}
+.dl-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600;
+  background: rgba(155, 107, 255, .15); color: var(--lilac);
+}
+.session-list li.is-ended .s-pin { opacity: .55; }
+
+/* Página de download */
+.dl-page { max-width: 520px; display: grid; gap: 14px; }
+.dl-page h1 { margin: 10px 0 4px; }
+.dl-page .center { display: grid; justify-items: center; gap: 12px; }
+.dl-options { display: grid; gap: 10px; margin: 8px 0 4px; }
+.dl-option {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px; text-align: left;
+  font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 14px; cursor: pointer; transition: border-color .15s, transform .1s;
+}
+.dl-option:hover:not(:disabled) { border-color: var(--accent); }
+.dl-option:active { transform: translateY(1px); }
+.dl-option:disabled { opacity: .5; cursor: wait; }
+.dl-option > span:last-child { display: grid; gap: 2px; }
+.dl-ico { font-size: 1.6rem; }
+.dl-share { border-top: 1px solid var(--border); padding-top: 12px; }
+.dl-share summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+.dl-share-body { display: grid; justify-items: center; gap: 10px; margin-top: 14px; }
+
+/* =====================================================================
+   JANELAS (DIALOG / MODAL)
+   ===================================================================== */
+.dialog, .modal {
+  width: min(480px, calc(100vw - 32px)); padding: 24px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
+}
+.dialog::backdrop { background: rgba(0, 0, 0, .7); backdrop-filter: blur(4px); }
+.dialog form { margin: 0; gap: 10px; }
+.dialog h2, .modal h2 { margin-bottom: 4px; }
+.dlg-option {
+  display: grid; gap: 4px; width: 100%; padding: 14px 16px; text-align: left;
+  font: inherit; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 12px; cursor: pointer;
+}
+.dlg-option:hover { border-color: var(--accent); }
+.dlg-option.danger strong { color: #fca5a5; }
+.dlg-option.danger:hover { border-color: var(--danger); }
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 16px;
+  background: rgba(0, 0, 0, .7); backdrop-filter: blur(4px); animation: rise .15s ease both;
+}
+.modal { max-height: calc(100dvh - 32px); overflow: auto; }
+.modal-body { margin: 8px 0 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+@media (max-width: 600px) {
+  .ann-toolbar { top: 8px; gap: 2px; padding: 4px; }
+  .tool { width: 34px; height: 34px; }
+  .swatch { width: 22px; height: 22px; }
+}
+
+#present.is-ended .controls, #present.is-ended .hint,
+#present.is-ended #p-end, #present.is-ended #p-copy { display: none; }

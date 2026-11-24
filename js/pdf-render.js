@@ -39,6 +39,7 @@ export class SlideRenderer {
     const ctx = this.canvas.getContext("2d");
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.canvas.style.width = this.canvas.style.height = "0px";
+    this.onLayout?.(0, 0, 1);
   }
 
   show(n) {
@@ -80,5 +81,6 @@ export class SlideRenderer {
     c.style.width = Math.floor(base.width * fit) + "px";
     c.style.height = Math.floor(base.height * fit) + "px";
     c.getContext("2d").drawImage(off, 0, 0);
+    this.onLayout?.(Math.floor(base.width * fit), Math.floor(base.height * fit), dpr);
   }
 }

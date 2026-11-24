@@ -184,6 +184,27 @@
 
       <div id="p-stage" class="stage clickable">
         <canvas id="p-canvas"></canvas>
+        <canvas id="p-ann" class="ann"></canvas>
+        <div class="ann-toolbar" id="ann-toolbar" role="toolbar" aria-label="Ferramentas de anotação">
+          <button class="tool active" data-tool="nav" type="button" title="Navegar (Esc)" aria-label="Navegar">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2.5-7.5L21 10z"/></svg>
+          </button>
+          <button class="tool" data-tool="pen" type="button" title="Lápis (P)" aria-label="Lápis">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+          </button>
+          <button class="tool" data-tool="hl" type="button" title="Marca-texto (H)" aria-label="Marca-texto">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
+          </button>
+          <span class="tb-sep"></span>
+          <div class="swatches" id="ann-colors"></div>
+          <span class="tb-sep"></span>
+          <button class="tool" id="ann-undo" type="button" title="Desfazer (Ctrl+Z)" aria-label="Desfazer">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
+          </button>
+          <button class="tool" id="ann-clear" type="button" title="Limpar anotações deste slide" aria-label="Limpar slide">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          </button>
+        </div>
         <div id="p-msg" class="stage-msg" hidden></div>
         <div class="fs-controls">
           <button class="nav-btn" id="fs-prev" type="button" aria-label="Slide anterior">‹</button>
@@ -199,8 +220,25 @@
         <button id="p-next" class="btn nav primary" type="button">Próximo ›</button>
         <button id="p-last" class="btn ghost" type="button" aria-label="Último slide">⏭</button>
       </div>
-      <p class="muted small center hint">Atalhos: ← → (ou espaço) para navegar · F para tela cheia · toque na metade esquerda/direita do slide</p>
+      <p class="muted small center hint">Atalhos: ← → (ou espaço) navegar · F tela cheia · P lápis · H marca-texto · Esc navegar · Ctrl+Z desfazer</p>
     </section>
+
+    <!-- Diálogo de encerramento -->
+    <dialog id="end-dialog" class="dialog">
+      <form method="dialog">
+        <h2>Encerrar apresentação</h2>
+        <p class="muted">PIN <strong id="end-pin"></strong>. O que você quer fazer?</p>
+        <button class="dlg-option" value="finish" type="submit">
+          <strong>Encerrar e liberar o download por 24 horas</strong>
+          <span class="muted small">Todos veem a tela final com link e QR Code para baixar o PDF (original ou com as anotações). Depois de 24 h o arquivo é apagado.</span>
+        </button>
+        <button class="dlg-option danger" value="delete" type="submit">
+          <strong>Encerrar e apagar agora</strong>
+          <span class="muted small">Apaga o arquivo e as anotações na hora. Ninguém mais consegue ver ou baixar.</span>
+        </button>
+        <button class="btn ghost block" value="cancel" type="submit">Cancelar</button>
+      </form>
+    </dialog>
   </main>
 
   <footer class="site-footer">

@@ -3,47 +3,49 @@
     "sessions": {
       "$pin": {
         ".read": true,
-        ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid) && (!newData.exists() || newData.child('owner').val() === auth.uid)",
+        ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid || (data.child('ended').val() === true && data.child('expiresAt').val() < now)) && (!newData.exists() || newData.child('owner').val() === auth.uid)",
         ".validate": "$pin.matches(/^[0-9]{4}$/) && newData.hasChildren(['owner', 'title', 'numPages', 'currentPage', 'chunks', 'ready'])",
-        "owner": {
-          ".validate": "newData.isString()"
-        },
-        "title": {
-          ".validate": "newData.isString() && newData.val().length <= 120"
-        },
-        "numPages": {
-          ".validate": "newData.isNumber() && newData.val() >= 1"
-        },
-        "currentPage": {
-          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= newData.parent().child('numPages').val()"
-        },
-        "chunks": {
-          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 60"
-        },
-        "ready": {
-          ".validate": "newData.isBoolean()"
-        },
-        "createdAt": {
-          ".validate": "newData.isNumber()"
-        },
-        "$other": {
-          ".validate": false
-        }
+        "owner": { ".validate": "newData.isString()" },
+        "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+        "numPages": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+        "currentPage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= newData.parent().child('numPages').val()" },
+        "chunks": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 60" },
+        "ready": { ".validate": "newData.isBoolean()" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "ended": { ".validate": "newData.isBoolean()" },
+        "endedAt": { ".validate": "newData.isNumber()" },
+        "expiresAt": { ".validate": "newData.isNumber() && newData.val() <= now + 87000000" },
+        "$other": { ".validate": false }
       }
     },
     "files": {
       "$pin": {
-        ".read": true,
-        ".write": "auth != null && root.child('sessions/' + $pin + '/owner').val() === auth.uid",
-        "$chunk": {
-          ".validate": "newData.isString() && newData.val().length <= 1100000"
+        ".read": "root.child('sessions/' + $pin).exists() && (root.child('sessions/' + $pin + '/ended').val() !== true || root.child('sessions/' + $pin + '/expiresAt').val() > now)",
+        ".write": "auth != null && (root.child('sessions/' + $pin + '/owner').val() === auth.uid || (root.child('sessions/' + $pin + '/ended').val() === true && root.child('sessions/' + $pin + '/expiresAt').val() < now))",
+        "$chunk": { ".validate": "newData.isString() && newData.val().length <= 1100000" }
+      }
+    },
+    "annotations": {
+      "$pin": {
+        ".read": "root.child('sessions/' + $pin).exists() && (root.child('sessions/' + $pin + '/ended').val() !== true || root.child('sessions/' + $pin + '/expiresAt').val() > now)",
+        ".write": "auth != null && (root.child('sessions/' + $pin + '/owner').val() === auth.uid || (root.child('sessions/' + $pin + '/ended').val() === true && root.child('sessions/' + $pin + '/expiresAt').val() < now))",
+        "$page": {
+          ".validate": "$page.matches(/^[0-9]{1,4}$/)",
+          "$stroke": {
+            ".validate": "newData.hasChildren(['tool', 'color', 'w', 'pts'])",
+            "tool": { ".validate": "newData.isString() && newData.val().matches(/^(pen|hl)$/)" },
+            "color": { ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)" },
+            "w": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() < 0.1" },
+            "pts": { ".validate": "newData.isString() && newData.val().length <= 60000" },
+            "$other": { ".validate": false }
+          }
         }
       }
     },
     "viewers": {
       "$pin": {
         ".read": "auth != null && root.child('sessions/' + $pin + '/owner').val() === auth.uid",
-        ".write": "auth != null && root.child('sessions/' + $pin + '/owner').val() === auth.uid",
+        ".write": "auth != null && (root.child('sessions/' + $pin + '/owner').val() === auth.uid || (root.child('sessions/' + $pin + '/ended').val() === true && root.child('sessions/' + $pin + '/expiresAt').val() < now))",
         "$viewer": {
           ".write": "!newData.exists() || root.child('sessions/' + $pin).exists()",
           ".validate": "newData.isNumber()"
@@ -56,30 +58,14 @@
         ".write": "auth != null && auth.uid === $uid",
         "profile": {
           ".validate": "newData.hasChildren(['firstName', 'lastName', 'birthDate', 'photo'])",
-          "firstName": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
-          },
-          "lastName": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
-          },
-          "birthDate": {
-            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)"
-          },
-          "email": {
-            ".validate": "newData.isString() && newData.val().length <= 200"
-          },
-          "photo": {
-            ".validate": "newData.isString() && newData.val().beginsWith('data:image/webp;base64,') && newData.val().length <= 300000"
-          },
-          "provider": {
-            ".validate": "newData.isString() && newData.val().length <= 40"
-          },
-          "updatedAt": {
-            ".validate": "newData.isNumber()"
-          },
-          "$other": {
-            ".validate": false
-          }
+          "firstName": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50" },
+          "lastName": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80" },
+          "birthDate": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+          "email": { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "photo": { ".validate": "newData.isString() && newData.val().beginsWith('data:image/webp;base64,') && newData.val().length <= 300000" },
+          "provider": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+          "$other": { ".validate": false }
         }
       }
     }

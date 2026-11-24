@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <meta name="robots" content="noindex">
+  <title>Baixar apresentação</title>
+  <link rel="icon" href="https://feliperodrigues.net/Assets/img/banner04.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/protect.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Página inicial"><img class="brand-logo" src="https://feliperodrigues.net/Assets/img/banner04.png" alt="Felipe Rodrigues"><span class="brand-text">Apresentação <em>ao vivo</em></span></a>
+    <a class="btn ghost sm" href="./">Início</a>
+  </header>
+
+  <main id="main">
+    <div id="config-alert" class="alert" hidden>
+      O Firebase ainda não foi configurado. Edite <code>js/firebase-config.js</code> (veja o README).
+    </div>
+
+    <section class="card center-card dl-page" id="dl">
+      <div id="dl-loading" class="center muted"><span class="spinner"></span>Carregando…</div>
+
+      <!-- Disponível -->
+      <div id="dl-ready" hidden>
+        <span class="badge ok-badge">DOWNLOAD DISPONÍVEL</span>
+        <h1 id="dl-title"></h1>
+        <p class="muted"><span id="dl-pages"></span> · disponível até <strong id="dl-until"></strong> (<span id="dl-left"></span>)</p>
+
+        <div class="dl-options">
+          <button class="dl-option" type="button" id="dl-annotated">
+            <span class="dl-ico" aria-hidden="true">✍️</span>
+            <span><strong>PDF com anotações</strong><span class="muted small">Com o que o apresentador escreveu e marcou nos slides.</span></span>
+          </button>
+          <button class="dl-option" type="button" id="dl-original">
+            <span class="dl-ico" aria-hidden="true">📄</span>
+            <span><strong>PDF original</strong><span class="muted small">O arquivo exatamente como foi enviado.</span></span>
+          </button>
+        </div>
+        <div id="dl-progress" class="progress" hidden><div class="bar"></div><span></span></div>
+        <p id="dl-error" class="error" role="alert"></p>
+
+        <details class="dl-share">
+          <summary>Compartilhar (link e QR Code)</summary>
+          <div class="dl-share-body">
+            <div class="qr" id="dl-qr"></div>
+            <div class="dl-link"><code id="dl-link"></code></div>
+            <button class="btn ghost sm" type="button" id="dl-copy">🔗 Copiar link</button>
+          </div>
+        </details>
+      </div>
+
+      <!-- Ainda acontecendo -->
+      <div id="dl-live" class="center" hidden>
+        <span class="badge live">● AO VIVO</span>
+        <h1>A apresentação ainda está acontecendo</h1>
+        <p class="muted">O download fica disponível assim que o apresentador encerrar. Esta página atualiza sozinha.</p>
+        <a class="btn primary" id="dl-watch" href="assistir.html">Assistir agora</a>
+      </div>
+
+      <!-- Indisponível -->
+      <div id="dl-gone" class="center" hidden>
+        <span class="badge ended">INDISPONÍVEL</span>
+        <h1>Link expirado</h1>
+        <p class="muted" id="dl-gone-text">O prazo de 24 horas para baixar esta apresentação terminou ou o arquivo foi apagado pelo apresentador.</p>
+        <a class="btn ghost" href="./">Ir para o início</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    Desenvolvido por <a href="https://feliperodrigues.net" target="_blank" rel="noopener">feliperodrigues.net</a>
+  </footer>
+
+  <script type="module" src="js/download.js"></script>
+</body>
+</html>
