@@ -134,6 +134,13 @@ export function authErrorMessage(err) {
     "auth/network-request-failed": "Sem conexão com a internet.",
     "auth/user-disabled": "Este usuário foi desativado.",
     "auth/missing-password": "Digite a senha.",
+    "auth/email-already-in-use": "Já existe uma conta com este e-mail. Entre ou use \"Esqueci minha senha\".",
+    "auth/weak-password": "Senha fraca: use pelo menos 6 caracteres.",
+    "auth/popup-blocked": "O navegador bloqueou a janela de login. Permita pop-ups para este site e tente de novo.",
+    "auth/account-exists-with-different-credential": "Este e-mail já está ligado a outra forma de login. Entre pelo método que você usou antes.",
+    "auth/operation-not-allowed": "Este método de login ainda não foi ativado no Firebase.",
+    "auth/unauthorized-domain": "Este domínio não está autorizado no Firebase Authentication.",
+    "auth/missing-email": "Digite seu e-mail.",
   };
   return map[err?.code] || "Não foi possível entrar. " + (err?.message || "");
 }

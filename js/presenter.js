@@ -1,18 +1,19 @@
 import {
-  signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
   ref, get, set, update, onValue, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-import { auth, db, configOk } from "./firebase.js";
+import { db, configOk } from "./firebase.js";
 import { SlideRenderer } from "./pdf-render.js";
+import { initAccount } from "./account.js";
 import {
   CHUNK_SIZE, MAX_FILE_MB, bytesToBase64, downloadPdf, shareLink,
-  toggleFullscreen, onSwipe, toast, copyText, escapeHtml, authErrorMessage
+  toggleFullscreen, onSwipe, toast, copyText, escapeHtml
 } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
-const sections = { login: $("login"), dashboard: $("dashboard"), present: $("present") };
+const sections = {
+  login: $("login"), signup: $("signup"), forgot: $("forgot"),
+  dashboard: $("dashboard"), present: $("present"),
+};
 
 const stage = $("p-stage"), pMsg = $("p-msg");
 const renderer = new SlideRenderer($("p-canvas"), stage);
@@ -25,57 +26,28 @@ let selectedFile = null;
 function show(name) {
   for (const [k, el] of Object.entries(sections)) el.hidden = k !== name;
   document.body.classList.toggle("presenting", name === "present");
+  window.scrollTo(0, 0);
 }
 
 if (!configOk) {
   $("config-alert").hidden = false;
   show("login");
-  $("login-btn").disabled = true;
+  document.querySelectorAll("#login button").forEach((b) => (b.disabled = true));
 } else {
-  onAuthStateChanged(auth, (u) => {
-    user = u;
-    $("logout").hidden = !u;
-    $("user-email").textContent = u?.email || "";
-    if (u) {
+  initAccount({
+    show,
+    onReady(u) {
+      user = u;
       show("dashboard");
       watchMyList();
-    } else {
-      stopPresenting();
+    },
+    onSignedOut() {
+      stopPresenting(false);
       listUnsub?.(); listUnsub = null;
-      show("login");
-      $("email").focus();
-    }
+      user = null;
+    },
   });
 }
-
-/* ================= LOGIN ================= */
-$("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const btn = $("login-btn");
-  $("login-error").textContent = "";
-  btn.disabled = true; btn.textContent = "Entrando…";
-  try {
-    await signInWithEmailAndPassword(auth, $("email").value.trim(), $("password").value);
-    $("password").value = "";
-  } catch (err) {
-    $("login-error").textContent = authErrorMessage(err);
-  } finally {
-    btn.disabled = false; btn.textContent = "Entrar";
-  }
-});
-
-$("forgot").addEventListener("click", async () => {
-  const email = $("email").value.trim();
-  if (!email) { $("login-error").textContent = "Digite seu e-mail acima primeiro."; return; }
-  try {
-    await sendPasswordResetEmail(auth, email);
-    toast("Se o e-mail existir, você receberá um link de redefinição.", "ok");
-  } catch (err) {
-    $("login-error").textContent = authErrorMessage(err);
-  }
-});
-
-$("logout").addEventListener("click", () => signOut(auth));
 
 /* ================= UPLOAD ================= */
 const dz = $("dropzone"), fileInput = $("file");

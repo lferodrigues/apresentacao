@@ -17,7 +17,7 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 
 | Administrador (`apresentador.html`) | Apresentação / visitante (`assistir.html`) |
 |---|---|
-| Login com e-mail e senha | Entrada pelo PIN de 4 números |
+| Login com e-mail e senha, **Google** ou **Apple** | Entrada pelo PIN de 4 números |
 | Upload de PDF (arrastar e soltar), até 30 MB | Entrada direta por link: `.../assistir.html?pin=1234` |
 | PIN gerado automaticamente e sem repetição | Slide sincronizado em tempo real |
 | Navegação por botões, teclado (← → espaço), toque e deslizar | Tela cheia (botão, tecla **F** ou duplo clique) |
@@ -25,6 +25,10 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 | Contador de pessoas assistindo | Layout responsivo (celular, tablet, PC, projetor) |
 | Botão para copiar o link de acesso | |
 | Lista "Minhas apresentações" para retomar depois | |
+| Cadastro (nome, sobrenome, nascimento, e-mail, senha e foto) | |
+| Foto de perfil convertida e salva em **.webp** no banco | |
+| Tela "Esqueci minha senha" | |
+| Botão de perfil com opção **Sair** | |
 | Encerrar apresentação (apaga o arquivo do banco) | |
 | Controle de mais de um dispositivo (ex.: notebook no projetor + celular como controle remoto) | |
 
@@ -39,6 +43,8 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 │   ├── firebase-config.js  # ⚠️ suas chaves do Firebase vão aqui
 │   ├── firebase.js         # Inicialização do Firebase
 │   ├── common.js           # Funções compartilhadas
+│   ├── account.js          # Login (e-mail/Google/Apple), cadastro, senha e perfil
+│   ├── image.js            # Converte a foto de perfil para WebP
 │   ├── pdf-render.js       # Renderização dos slides com PDF.js
 │   ├── viewer.js           # Lógica do visitante
 │   └── presenter.js        # Lógica do apresentador
@@ -51,6 +57,7 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 sessions/{PIN}           → dono, título, nº de páginas, slide atual, pronto?
 files/{PIN}/c0, c1, …    → o PDF em pedaços (base64)
 viewers/{PIN}/{id}       → presença de cada visitante (some ao fechar a aba)
+users/{uid}/profile      → nome, sobrenome, nascimento, e-mail e foto (.webp em base64)
 users/{uid}/sessions     → lista de apresentações de cada apresentador
 ```
 
@@ -66,10 +73,22 @@ O PDF é guardado no próprio Realtime Database (em pedaços), então **não é 
 
 ### 2. Ativar o login (Authentication)
 1. Menu **Build → Authentication → Começar**.
-2. Em **Método de login**, ative **E-mail/senha**.
-3. Na aba **Usuários**, clique em **Adicionar usuário** e crie o seu (e-mail + senha). É com ele que você entra em `apresentador.html`.
-4. Em **Configurações → Domínios autorizados**, adicione: `lferodrigues.github.io` (e o seu domínio próprio, se usar).
-5. *(Recomendado)* Em **Configurações → Ações do usuário**, desmarque **Ativar criação (inscrição)** para que ninguém consiga criar conta pelo navegador.
+2. Em **Método de login**, ative:
+   - **E-mail/senha** (necessário para o cadastro e o "Esqueci minha senha");
+   - **Google**: basta ativar e escolher o e-mail de suporte;
+   - **Apple**: veja o passo 2.1.
+3. Em **Configurações → Domínios autorizados**, adicione: `lferodrigues.github.io` (e o seu domínio próprio, se usar).
+4. Em **Configurações → Ações do usuário**, deixe **Ativar criação (inscrição)** marcado, para o cadastro funcionar.
+5. *(Opcional)* Em **Templates → Redefinição de senha**, mude o idioma para português.
+
+#### 2.1. Login com Apple
+O login com Apple exige uma conta no **Apple Developer Program** (paga). Com ela:
+1. No [Apple Developer](https://developer.apple.com/account/resources), crie um **App ID** com *Sign in with Apple* e um **Services ID** (ex.: `net.feliperodrigues.apresentacao`).
+2. No Services ID, configure *Sign in with Apple*: domínio `apresentacao-slides-4b2f9.firebaseapp.com` e URL de retorno `https://apresentacao-slides-4b2f9.firebaseapp.com/__/auth/handler`.
+3. Crie uma **Key** com *Sign in with Apple* e baixe o arquivo `.p8`.
+4. No Firebase, ative **Apple** e preencha o Services ID, o Team ID, o Key ID e o conteúdo da chave `.p8`.
+
+Enquanto o Apple não estiver configurado, o botão mostra a mensagem "Este método de login ainda não foi ativado no Firebase".
 
 ### 3. Criar o Realtime Database
 1. Menu **Build → Realtime Database → Criar banco de dados**.
@@ -94,7 +113,7 @@ O PDF é guardado no próprio Realtime Database (em pedaços), então **não é 
 ## Como usar
 
 **Apresentador**
-1. Abra `https://lferodrigues.github.io/apresentacao/`, clique em **Administrador** e faça login.
+1. Abra `https://lferodrigues.github.io/apresentacao/`, clique em **Administrador** e entre (e-mail, Google ou Apple). Na primeira vez, use **Cadastre-se**. Quem entra pelo Google ou pela Apple completa o cadastro (data de nascimento e foto) no primeiro acesso.
 2. Escolha o PDF, dê um título e clique em **Enviar e gerar PIN**.
 3. Mostre o PIN (ou envie o link) para o público.
 4. Navegue com **← →**, **espaço**, os botões, tocando nas laterais do slide ou deslizando o dedo. **F** = tela cheia.
@@ -120,6 +139,7 @@ Adicione `localhost` aos domínios autorizados do Firebase Authentication (norma
 - **Tamanho do PDF:** até 30 MB. PDFs menores carregam mais rápido para quem assiste — se possível, comprima antes (ex.: "Reduzir tamanho" no Acrobat ou ilovepdf).
 - **Plano gratuito do Firebase (Spark):** 1 GB armazenado e 10 GB de download por mês, até 100 conexões simultâneas. Cada visitante baixa o PDF uma vez. Exemplo: um PDF de 5 MB para 40 pessoas ≈ 200 MB.
 - **Segurança do PIN:** qualquer pessoa com o PIN pode ver a apresentação. Encerre as apresentações que não estiver usando — isso também libera espaço.
+- **Foto de perfil:** é recortada em quadrado, reduzida para 320×320 px e salva como WebP (normalmente 10–40 KB) direto no Realtime Database, sem precisar do Firebase Storage.
 - **iPhone:** o Safari não tem tela cheia "de verdade" para páginas; o sistema usa um modo que ocupa a tela toda.
 - Para restringir o envio a **um único usuário**, troque nas regras `auth != null` por `auth.uid === 'SEU_UID'` (o UID aparece na aba Usuários do Authentication).
 
