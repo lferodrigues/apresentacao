@@ -7,6 +7,7 @@ Sistema web para apresentar um PDF em tempo real para várias pessoas ao mesmo t
 - Os **visitantes** abrem o site, digitam o PIN e veem a apresentação.
 - Quando o apresentador **avança ou volta** um slide, a mudança aparece **em todas as telas** na hora.
 - O apresentador pode **escrever com lápis** e **marcar com marca-texto** (várias cores), e todos veem ao vivo.
+- Na tela inicial, o botão **Precisa de ajuda? Veja o vídeo** abre um tutorial em vídeo num pop-up (arquivo em `media/ajuda.mp4`).
 - Ao encerrar, o público pode **baixar o PDF por 24 horas**, por link ou **QR Code** gerados automaticamente.
 - Todo PDF enviado fica salvo em **Meus arquivos por 6 meses**: o professor vê a lista, baixa, apresenta de novo (sem reenviar) ou exclui.
 - Também dá para **espelhar a tela** (ou a câmera) **com microfone** ao vivo, com atraso de chamada de vídeo (WebRTC, como no Google Meet).

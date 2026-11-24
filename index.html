@@ -63,7 +63,46 @@
       <li><b>2</b> Um PIN de 4 números é gerado</li>
       <li><b>3</b> Todos acompanham ao vivo</li>
     </ol>
+
+    <button class="help-btn" type="button" id="help-btn" aria-haspopup="dialog">
+      <span class="help-ico" aria-hidden="true">?</span>
+      <span>Precisa de ajuda? <b>Veja o vídeo</b></span>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+    </button>
   </main>
+
+  <!-- Pop-up de ajuda com o vídeo -->
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title">
+    <div class="help-head">
+      <div>
+        <span class="help-tag">Ajuda</span>
+        <h2 id="help-title">Como usar a Apresentação ao vivo</h2>
+      </div>
+      <button class="help-close" type="button" id="help-close" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="help-video">
+      <video id="help-video" controls playsinline preload="none" poster="media/ajuda-capa.jpg">
+        <source src="media/ajuda.mp4" type="video/mp4">
+        Seu navegador não reproduz vídeos. <a href="media/ajuda.mp4">Baixe o vídeo</a>.
+      </video>
+    </div>
+    <p class="help-foot muted small">Dúvidas? Assista com calma: dá para pausar e voltar a qualquer momento.</p>
+  </dialog>
+
+  <script>
+    (function () {
+      var dlg = document.getElementById("help-dialog"), vid = document.getElementById("help-video");
+      document.getElementById("help-btn").addEventListener("click", function () {
+        dlg.showModal();
+        var p = vid.play(); if (p && p.catch) p.catch(function () {});
+      });
+      document.getElementById("help-close").addEventListener("click", function () { dlg.close(); });
+      dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); }); // clique fora fecha
+      dlg.addEventListener("close", function () { vid.pause(); });
+    })();
+  </script>
 
   <footer class="site-footer">
     Desenvolvido por <a href="https://feliperodrigues.net" target="_blank" rel="noopener">feliperodrigues.net</a>
