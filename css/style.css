@@ -503,9 +503,9 @@ input[type="date"] {
 .stage.drawing canvas { touch-action: none; }
 
 .ann-toolbar {
-  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  position: absolute; top: 12px; left: 0; right: 0; margin-inline: auto; width: fit-content; z-index: 5;
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center;
-  max-width: calc(100% - 24px); padding: 6px; border-radius: 14px;
+  max-width: calc(100% - 16px); padding: 6px; border-radius: 14px;
   background: rgba(15, 15, 15, .82); border: 1px solid rgba(255, 255, 255, .1);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, .5); cursor: default;
@@ -605,9 +605,12 @@ input[type="date"] {
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
 @media (max-width: 600px) {
-  .ann-toolbar { top: 8px; gap: 2px; padding: 4px; }
-  .tool { width: 34px; height: 34px; }
-  .swatch { width: 22px; height: 22px; }
+  .ann-toolbar { top: 6px; gap: 2px; padding: 4px; }
+  .tool { width: 32px; height: 32px; }
+  .tool svg { width: 18px; height: 18px; }
+  .swatches { gap: 4px; }
+  .swatch { width: 20px; height: 20px; }
+  .tb-sep { margin: 0 2px; }
 }
 
 #present.is-ended .controls, #present.is-ended .hint,

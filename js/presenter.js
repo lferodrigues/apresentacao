@@ -269,7 +269,7 @@ async function reopen(pin, btn) {
 
 /* ================= APRESENTAÇÃO ================= */
 function startPresenting(pin, title, numPages, page) {
-  stopPresenting(false);
+  stopPresenting(false, true);
   stopScreen(false);
   current = { pin, title, numPages, page, unsubs: [], annUnsub: null, ended: false };
   $("p-pin").textContent = pin;
@@ -307,7 +307,13 @@ function startPresenting(pin, title, numPages, page) {
   }));
 }
 
-function stopPresenting(goDashboard = true) {
+/**
+ * Fecha a apresentação atual.
+ * keepDoc = true mantém o PDF carregado (usado ao abrir uma nova apresentação,
+ * logo depois de carregar o arquivo — antes isso apagava o PDF e o palco
+ * do apresentador ficava preto).
+ */
+function stopPresenting(goDashboard = true, keepDoc = false) {
   if (current) {
     current.unsubs.forEach((u) => u());
     current.annUnsub?.();
@@ -317,7 +323,7 @@ function stopPresenting(goDashboard = true) {
   hideEnded();
   ann.clear();
   setTool("nav");
-  renderer.unload();
+  if (!keepDoc) renderer.unload();
   if (document.fullscreenElement) document.exitFullscreen?.();
   stage.classList.remove("fake-fs");
   document.body.classList.remove("no-scroll");
