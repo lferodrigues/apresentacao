@@ -317,9 +317,10 @@ function watchLibrary() {
       .filter((f) => f.ready && f.expiresAt >= now)
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    const pill = $("files-count");
-    pill.hidden = !library.length;
-    pill.textContent = library.length;
+    for (const pill of [$("files-count"), $("pm-files-count")]) {
+      pill.hidden = !library.length;
+      pill.textContent = library.length;
+    }
     renderLibrary();
   }, (err) => {
     console.error(err);
@@ -361,8 +362,19 @@ function renderLibrary() {
     </li>`).join("");
 }
 
-$("open-files").addEventListener("click", () => { show("files"); renderLibrary(); $("files-search").focus(); });
-$("files-back").addEventListener("click", () => show("dashboard"));
+function openFiles() {
+  if (!user) return;
+  // Sai da apresentação/transmissão aberta nesta tela (o PIN continua valendo para o público)
+  if (current) stopPresenting(false);
+  if (screenPin) stopScreen(false);
+  document.title = "Meus arquivos";
+  show("files");
+  renderLibrary();
+  $("files-search").focus();
+}
+$("open-files").addEventListener("click", openFiles);
+$("pm-files").addEventListener("click", openFiles);
+$("files-back").addEventListener("click", () => { document.title = "Painel do apresentador"; show("dashboard"); });
 $("files-search").addEventListener("input", renderLibrary);
 
 $("files-list").addEventListener("click", (e) => {

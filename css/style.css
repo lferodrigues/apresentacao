@@ -56,6 +56,7 @@ h2 { font-size: 1.15rem; }
   border-bottom: 1px solid var(--border);
   background: rgba(5, 5, 5, .82);
   backdrop-filter: blur(8px);
+  position: relative; z-index: 50; /* menu do perfil acima do slide (abaixo da tela cheia, z 1000) */
 }
 .topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .topbar-right #user-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40vw; }
@@ -483,6 +484,8 @@ input[type="date"] {
 }
 .pm-item:hover { background: var(--surface-2); }
 .pm-item.danger { color: #fca5a5; }
+.pm-item .pm-count { margin-left: auto; background: var(--surface-2); color: var(--text); }
+.pm-sep { height: 1px; background: var(--border); margin: 6px 4px; }
 .pm-item.danger:hover { background: rgba(239, 68, 68, .1); }
 
 @media (max-width: 520px) {

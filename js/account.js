@@ -322,6 +322,7 @@ export function initAccount({ show, onReady, onSignedOut }) {
     pBtn.setAttribute("aria-expanded", String(open));
   });
   document.addEventListener("click", (e) => { if (!e.target.closest("#profile")) closeMenu(); });
+  pMenu.addEventListener("click", (e) => { if (e.target.closest(".pm-item")) closeMenu(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
 
   $("logout").addEventListener("click", async () => {
