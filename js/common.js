@@ -44,7 +44,7 @@ export async function downloadPdf(db, pin, chunks, onProgress) {
 }
 
 /** Link público para visitantes entrarem direto com o PIN. */
-export const shareLink = (pin) => new URL(`./?pin=${pin}`, location.href).href;
+export const shareLink = (pin) => new URL(`./assistir.html?pin=${pin}`, location.href).href;
 
 /* ---------- Tela cheia (com alternativa para iPhone) ---------- */
 export function isFullscreen(el) {

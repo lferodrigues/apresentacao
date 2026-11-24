@@ -2,6 +2,7 @@
 
 Sistema web para apresentar um PDF em tempo real para várias pessoas ao mesmo tempo.
 
+- A página inicial tem dois botões: **Apresentação** (assistir com PIN) e **Administrador** (painel).
 - O **apresentador** entra com usuário e senha, envia um **PDF** e recebe um **PIN de 4 números**.
 - Os **visitantes** abrem o site, digitam o PIN e veem a apresentação.
 - Quando o apresentador **avança ou volta** um slide, a mudança aparece **em todas as telas** na hora.
@@ -14,10 +15,10 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 
 ## Funcionalidades
 
-| Apresentador (`apresentador.html`) | Visitante (`index.html`) |
+| Administrador (`apresentador.html`) | Apresentação / visitante (`assistir.html`) |
 |---|---|
 | Login com e-mail e senha | Entrada pelo PIN de 4 números |
-| Upload de PDF (arrastar e soltar), até 30 MB | Entrada direta por link: `.../?pin=1234` |
+| Upload de PDF (arrastar e soltar), até 30 MB | Entrada direta por link: `.../assistir.html?pin=1234` |
 | PIN gerado automaticamente e sem repetição | Slide sincronizado em tempo real |
 | Navegação por botões, teclado (← → espaço), toque e deslizar | Tela cheia (botão, tecla **F** ou duplo clique) |
 | Tela cheia com controles flutuantes | Aviso quando a apresentação é encerrada |
@@ -30,7 +31,8 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 ## Estrutura
 
 ```
-├── index.html            # Visitante: digita o PIN e assiste
+├── index.html            # Página inicial: escolher Apresentação ou Administrador
+├── assistir.html         # Visitante: digita o PIN e assiste
 ├── apresentador.html     # Apresentador: login, upload e controle
 ├── css/style.css         # Estilos (tema escuro, responsivo)
 ├── js/
@@ -92,14 +94,14 @@ O PDF é guardado no próprio Realtime Database (em pedaços), então **não é 
 ## Como usar
 
 **Apresentador**
-1. Abra `https://lferodrigues.github.io/apresentacao/apresentador.html` e faça login.
+1. Abra `https://lferodrigues.github.io/apresentacao/`, clique em **Administrador** e faça login.
 2. Escolha o PDF, dê um título e clique em **Enviar e gerar PIN**.
 3. Mostre o PIN (ou envie o link) para o público.
 4. Navegue com **← →**, **espaço**, os botões, tocando nas laterais do slide ou deslizando o dedo. **F** = tela cheia.
 5. Ao terminar, clique em **Encerrar**.
 
 **Visitante**
-1. Abra `https://lferodrigues.github.io/apresentacao/`.
+1. Abra `https://lferodrigues.github.io/apresentacao/` e clique em **Apresentação** (ou abra direto `.../assistir.html`).
 2. Digite o PIN e clique em **Assistir**.
 
 ## Testar no computador (opcional)

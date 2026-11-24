@@ -3,60 +3,66 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f1117">
-  <title>Apresentação ao vivo</title>
-  <meta name="description" content="Assista à apresentação em tempo real usando o PIN de acesso.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f8cff'/><path d='M38 30v40l32-20z' fill='white'/></svg>">
+  <meta name="theme-color" content="#0b0d14">
+  <title>Apresentação ao vivo · Felipe Rodrigues</title>
+  <meta name="description" content="Apresente seus slides em tempo real ou assista a uma apresentação usando o PIN de acesso.">
+  <meta property="og:title" content="Apresentação ao vivo">
+  <meta property="og:description" content="Apresente ou assista a slides em tempo real com um PIN de 4 números.">
+  <meta property="og:image" content="https://feliperodrigues.net/Assets/img/banner04.png">
+  <link rel="icon" href="https://feliperodrigues.net/Assets/img/banner04.png">
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Compatibilidade com links antigos: ./?pin=1234 → assistir.html?pin=1234
+    (function () {
+      var p = new URLSearchParams(location.search).get("pin");
+      if (p) location.replace("assistir.html?pin=" + encodeURIComponent(p));
+    })();
+  </script>
 </head>
-<body>
-  <header class="topbar">
-    <a class="brand" href="./"><span class="logo" aria-hidden="true">▶</span>Apresentação <em>ao vivo</em></a>
-    <a class="btn ghost sm" href="apresentador.html">Sou o apresentador</a>
-  </header>
+<body class="home">
+  <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
 
-  <main id="main">
-    <div id="config-alert" class="alert" hidden>
-      O Firebase ainda não foi configurado. Edite <code>js/firebase-config.js</code> (veja o README).
-    </div>
-
-    <!-- Entrada com PIN -->
-    <section id="join" class="card center-card">
-      <h1>Entrar na apresentação</h1>
-      <p class="muted">Digite o PIN de 4 números informado pelo apresentador.</p>
-      <form id="join-form" autocomplete="off" novalidate>
-        <label for="pin" class="sr-only">PIN de acesso</label>
-        <input id="pin" class="pin-input" type="text" inputmode="numeric" pattern="\d{4}"
-               maxlength="4" placeholder="0000" autocomplete="one-time-code" required>
-        <button class="btn primary block" type="submit" id="join-btn">Assistir</button>
-        <p id="join-error" class="error" role="alert"></p>
-      </form>
+  <main class="home-main">
+    <section class="hero">
+      <img class="hero-logo" src="https://feliperodrigues.net/Assets/img/banner04.png" alt="Felipe Rodrigues">
+      <span class="eyebrow"><span class="dot"></span> Slides sincronizados em tempo real</span>
+      <h1>Apresentação <span class="grad">ao vivo</span></h1>
+      <p class="lead">Escolha como você quer entrar.</p>
     </section>
 
-    <!-- Visualização -->
-    <section id="viewer" class="presentation" hidden>
-      <div class="pres-bar">
-        <div class="pres-info">
-          <span id="v-badge" class="badge live">● AO VIVO</span>
-          <strong id="v-title" class="pres-title"></strong>
-        </div>
-        <div class="pres-actions">
-          <span id="v-page" class="page-indicator"></span>
-          <button id="v-fullscreen" class="btn ghost sm" type="button" title="Tela cheia (F)">⛶ Tela cheia</button>
-          <button id="v-leave" class="btn ghost sm" type="button">Sair</button>
-        </div>
-      </div>
-      <div id="v-stage" class="stage">
-        <canvas id="v-canvas"></canvas>
-        <div id="v-msg" class="stage-msg"></div>
-      </div>
-    </section>
+    <nav class="choice-grid" aria-label="Escolha o modo de acesso">
+      <a class="choice" href="assistir.html">
+        <span class="choice-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M10 8.5v5l4-2.5z" fill="currentColor"/></svg>
+        </span>
+        <span class="choice-body">
+          <strong>Apresentação</strong>
+          <span>Assista aos slides com o PIN de 4 números informado pelo apresentador.</span>
+        </span>
+        <span class="choice-cta">Entrar com PIN <span aria-hidden="true">→</span></span>
+      </a>
+
+      <a class="choice alt" href="apresentador.html">
+        <span class="choice-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <span class="choice-body">
+          <strong>Administrador</strong>
+          <span>Faça login, envie o PDF, gere o PIN e controle os slides de todas as telas.</span>
+        </span>
+        <span class="choice-cta">Acessar painel <span aria-hidden="true">→</span></span>
+      </a>
+    </nav>
+
+    <ol class="steps" aria-label="Como funciona">
+      <li><b>1</b> O administrador envia o PDF</li>
+      <li><b>2</b> Um PIN de 4 números é gerado</li>
+      <li><b>3</b> Todos acompanham ao vivo</li>
+    </ol>
   </main>
 
   <footer class="site-footer">
     Desenvolvido por <a href="https://feliperodrigues.net" target="_blank" rel="noopener">feliperodrigues.net</a>
   </footer>
-
-  <script type="module" src="js/viewer.js"></script>
 </body>
 </html>
