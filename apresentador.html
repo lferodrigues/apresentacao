@@ -309,6 +309,18 @@
         <button class="btn ghost block" value="cancel" type="submit">Cancelar</button>
       </form>
     </dialog>
+
+    <!-- Por quanto tempo guardar o PDF (aparece ao encerrar) -->
+    <dialog id="keep-dialog" class="dialog keep-dialog">
+      <form method="dialog">
+        <div class="keep-icon" aria-hidden="true">📁</div>
+        <h2>Por quanto tempo salvar o arquivo?</h2>
+        <p class="muted small">Você enviou <strong id="keep-title"></strong> agora. Ele fica em <b>Meus arquivos</b> pelo tempo que você escolher e depois é apagado automaticamente.</p>
+        <div id="keep-options" class="keep-options"></div>
+        <p id="keep-note" class="small keep-note" hidden></p>
+        <button class="btn ghost block" value="keep" type="submit" id="keep-skip">Decidir depois</button>
+      </form>
+    </dialog>
   </main>
 
   <footer class="site-footer">

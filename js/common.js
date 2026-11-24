@@ -34,6 +34,23 @@ export function libraryExpiry(from = serverNow()) {
   return d.getTime();
 }
 
+/** Opções de tempo para manter o PDF em "Meus arquivos" (escolhidas ao encerrar). */
+export const RETENTION_OPTIONS = [
+  { id: "3h", label: "3 horas", hours: 3 },
+  { id: "1d", label: "1 dia", hours: 24 },
+  { id: "1w", label: "1 semana", hours: 24 * 7 },
+  { id: "1m", label: "1 mês", months: 1 },
+  { id: "6m", label: "6 meses", months: LIBRARY_MONTHS },
+];
+
+/** Data de expiração para uma das opções acima, contada a partir de agora (hora do servidor). */
+export function retentionExpiry(opt, from = serverNow()) {
+  if (opt.hours) return from + opt.hours * 3600 * 1000;
+  const d = new Date(from);
+  d.setMonth(d.getMonth() + opt.months);
+  return d.getTime();
+}
+
 /** Caminho no banco onde ficam os pedaços do PDF de uma sessão. */
 export const sessionPdfPath = (pin, d) =>
   d?.file && d?.owner ? `libraryFiles/${d.owner}/${d.file}` : `files/${pin}`;

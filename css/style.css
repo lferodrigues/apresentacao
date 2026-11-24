@@ -681,3 +681,36 @@ input[type="date"] {
 .files-list .s-info strong { word-break: break-word; }
 .tag.warn { background: rgba(239, 68, 68, .15); color: var(--danger); }
 .tag.live { background: rgba(76, 187, 95, .15); color: var(--accent-light); }
+
+/* ---------- Pop-up: por quanto tempo salvar o arquivo ---------- */
+.keep-dialog { width: min(520px, calc(100vw - 32px)); text-align: center; }
+.keep-icon {
+  width: 56px; height: 56px; margin: 0 auto 6px; display: grid; place-items: center; font-size: 1.7rem;
+  border-radius: 16px; background: rgba(155, 107, 255, .14); border: 1px solid rgba(155, 107, 255, .35);
+}
+.keep-dialog p { margin: 0 0 6px; }
+.keep-options { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 10px 0 4px; }
+.keep-options .keep-opt { flex: 1 1 130px; max-width: calc((100% - 20px) / 3); }
+@media (max-width: 520px) { .keep-options .keep-opt { max-width: calc((100% - 10px) / 2); } }
+.keep-opt {
+  display: grid; gap: 2px; padding: 14px 10px; border-radius: 14px; cursor: pointer; font: inherit; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border); transition: border-color .15s, transform .15s, background .15s;
+}
+.keep-opt strong { font-size: 1.05rem; }
+.keep-opt span { font-size: .78rem; color: var(--muted); }
+.keep-opt:hover, .keep-opt:focus-visible { border-color: var(--lilac); background: rgba(155, 107, 255, .1); transform: translateY(-1px); outline: none; }
+.keep-opt.current { border-color: var(--accent); }
+.keep-opt.current::after { content: "atual"; font-size: .7rem; font-weight: 700; color: var(--accent-light); text-transform: uppercase; letter-spacing: .06em; }
+.keep-note { padding: 8px 10px; border-radius: 10px; background: rgba(251, 191, 36, .1); color: #fcd34d; }
+
+/* ---------- Alerta: arquivo repetido ---------- */
+.dup-alert { text-align: center; }
+.dup-icon {
+  width: 56px; height: 56px; margin: 0 auto 8px; display: grid; place-items: center; font-size: 1.6rem;
+  border-radius: 16px; background: rgba(251, 191, 36, .12); border: 1px solid rgba(251, 191, 36, .4);
+}
+.dup-file {
+  display: grid; gap: 2px; margin: 10px 0; padding: 12px 14px; text-align: left;
+  border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border);
+}
+.dup-file strong { word-break: break-word; }

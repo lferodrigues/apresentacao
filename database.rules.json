@@ -160,6 +160,12 @@
           "pin": {
             ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}$/)"
           },
+          "hash": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+          },
+          "askKeep": {
+            ".validate": "newData.isBoolean()"
+          },
           "$other": {
             ".validate": false
           }

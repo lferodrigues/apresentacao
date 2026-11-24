@@ -145,7 +145,7 @@ Enquanto o Apple não estiver configurado, o botão mostra a mensagem "Este mét
    - **Encerrar e liberar o download por 24 horas**: todas as telas mostram o QR Code e o link para baixar o PDF;
    - **Encerrar sem download**: fecha o PIN na hora (o PDF continua em Meus arquivos).
 7. Em **Minhas apresentações**, as encerradas mostram até quando o download vale, com os botões **QR e link de download**, **Reabrir** e **Excluir**.
-8. Em **📁 Meus arquivos** (no painel ou no menu do botão de perfil) ficam todos os PDFs enviados nos últimos 6 meses, com a data em que cada um vence. Para cada arquivo: **Apresentar** (gera um PIN novo sem reenviar o PDF), **⬇ Baixar** e **Excluir** (apaga de vez; se estiver em uma apresentação, o PIN também é encerrado).
+8. Em **📁 Meus arquivos** (no painel ou no menu do botão de perfil) ficam os PDFs enviados, com a data em que cada um vence. Ao **encerrar a primeira apresentação** de um PDF recém-enviado, um pop-up pergunta por quanto tempo guardá-lo: **3 horas, 1 dia, 1 semana, 1 mês ou 6 meses** (até escolher, ele fica 6 meses; "Decidir depois" pergunta de novo na próxima vez). Se você enviar um PDF que **já está salvo**, aparece um alerta com o arquivo existente e as opções **Apresentar o arquivo salvo**, **Enviar mesmo assim** ou **Cancelar** (a comparação é pelo conteúdo do arquivo, não pelo nome). Para cada arquivo: **Apresentar** (gera um PIN novo sem reenviar o PDF), **⬇ Baixar** e **Excluir** (apaga de vez; se estiver em uma apresentação, o PIN também é encerrado).
 
 **Espelhar tela**
 1. No painel, digite um título (opcional) e clique em **Espelhar tela**. Um PIN é gerado na hora.

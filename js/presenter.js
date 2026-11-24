@@ -13,7 +13,8 @@ import {
   CHUNK_SIZE, MAX_FILE_MB, bytesToBase64, downloadPdf, shareLink, downloadLink,
   toggleFullscreen, onSwipe, toast, copyText, escapeHtml,
   trackServerTime, serverNow, formatDateTime, timeLeft, renderDownloadBox, modal, DOWNLOAD_HOURS,
-  sessionPdfPath, libraryPdfPath, libraryExpiry, formatDate, formatSize, LIBRARY_MONTHS
+  sessionPdfPath, libraryPdfPath, libraryExpiry, formatDate, formatSize, LIBRARY_MONTHS,
+  RETENTION_OPTIONS, retentionExpiry
 } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
@@ -129,7 +130,24 @@ $("upload-form").addEventListener("submit", async (e) => {
     const numPages = await renderer.load(bytes); // valida o PDF
     const chunks = Math.max(1, Math.ceil(bytes.length / CHUNK_SIZE));
 
-    // 1) Salva o PDF em "Meus arquivos" (fica guardado por 6 meses)
+    // 0) Esse PDF já está em "Meus arquivos"?
+    setProgress(0, "Verificando seus arquivos…");
+    const hash = await sha256Hex(bytes);
+    const dup = findDuplicate(hash, bytes.length, selectedFile.name);
+    if (dup) {
+      setProgress(null);
+      const choice = await askDuplicate(dup);
+      if (choice !== "upload") {
+        renderer.unload();
+        if (choice === "use") {
+          resetUploadForm();
+          await presentFromLibrary(dup, btn);
+        }
+        return;
+      }
+    }
+
+    // 1) Salva o PDF em "Meus arquivos" (6 meses até o professor escolher o prazo ao encerrar)
     fileId = push(ref(db, `library/${user.uid}`)).key;
     await set(ref(db, `library/${user.uid}/${fileId}`), {
       title,
@@ -137,6 +155,8 @@ $("upload-form").addEventListener("submit", async (e) => {
       size: bytes.length,
       numPages,
       chunks,
+      hash,
+      askKeep: true,
       ready: false,
       createdAt: serverTimestamp(),
       expiresAt: libraryExpiry(),
@@ -169,6 +189,39 @@ $("upload-form").addEventListener("submit", async (e) => {
     btn.disabled = !selectedFile;
   }
 });
+
+/** Impressão digital (SHA-256) do PDF, para reconhecer o mesmo arquivo enviado de novo. */
+async function sha256Hex(bytes) {
+  const buf = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Procura o mesmo PDF em "Meus arquivos" (pelo SHA-256; nos arquivos antigos, por nome + tamanho). */
+function findDuplicate(hash, size, name) {
+  return library.find((f) => (f.hash ? f.hash === hash : f.size === size && f.name === name)) || null;
+}
+
+/** Alerta: o arquivo já existe. Devolve "use" (usar o salvo), "upload" (enviar mesmo assim) ou null. */
+function askDuplicate(f) {
+  return modal({
+    title: "Você já tem este arquivo salvo",
+    html: `<div class="dup-alert">
+        <div class="dup-icon" aria-hidden="true">⚠️</div>
+        <p>Este PDF é igual a um arquivo que já está em <b>Meus arquivos</b>:</p>
+        <div class="dup-file">
+          <strong>📄 ${escapeHtml(f.title)}</strong>
+          <span class="muted small">${f.numPages} slide${f.numPages > 1 ? "s" : ""} · ${f.size ? formatSize(f.size) : "?"} · enviado em ${f.createdAt ? formatDate(f.createdAt) : "?"}</span>
+          <span class="muted small">Salvo até ${formatDateTime(f.expiresAt)}</span>
+        </div>
+        <p class="muted small">Usar o arquivo salvo é mais rápido e não ocupa espaço de novo.</p>
+      </div>`,
+    buttons: [
+      { label: "Apresentar o arquivo salvo", value: "use", cls: "primary" },
+      { label: "Enviar mesmo assim", value: "upload", cls: "ghost" },
+      { label: "Cancelar", cls: "ghost" },
+    ],
+  });
+}
 
 /** Cria uma sessão (PIN) que usa um PDF já salvo em "Meus arquivos". */
 async function createPdfSession(fileId, title, numPages, chunks) {
@@ -352,7 +405,7 @@ function renderLibrary() {
       <div class="s-info">
         <strong>${escapeHtml(f.title)}</strong>
         <span class="muted small">${f.numPages} slide${f.numPages > 1 ? "s" : ""} · ${f.size ? formatSize(f.size) : "?"} · enviado em ${f.createdAt ? formatDate(f.createdAt) : "?"}</span>
-        <span class="small"><span class="tag ${f.expiresAt < soon ? "warn" : ""}">Salvo até ${formatDate(f.expiresAt)}</span></span>
+        <span class="small"><span class="tag ${f.expiresAt < soon ? "warn" : ""}">Salvo até ${f.expiresAt - serverNow() < 2 * 86400000 ? formatDateTime(f.expiresAt) : formatDate(f.expiresAt)}</span></span>
       </div>
       <div class="s-actions">
         <button class="btn primary sm" data-fact="present" data-id="${f.id}">Apresentar</button>
@@ -411,6 +464,9 @@ async function downloadFromLibrary(f, btn) {
 
 async function presentFromLibrary(f, btn) {
   try {
+    // Garante que o arquivo não expire no meio da aula (mínimo de 24 h a partir de agora)
+    const minExp = serverNow() + DOWNLOAD_HOURS * 3600 * 1000;
+    if (f.expiresAt < minExp) await update(ref(db, `library/${user.uid}/${f.id}`), { expiresAt: minExp });
     // O arquivo já está em uma apresentação? Abre a mesma ou avisa antes de trocar o PIN.
     const prev = f.pin ? (await get(ref(db, `sessions/${f.pin}`))).val() : null;
     const mine = prev && prev.owner === user.uid && prev.file === f.id;
@@ -801,6 +857,64 @@ function askEnd(pin) {
   });
 }
 
+/**
+ * Pop-up personalizado: por quanto tempo manter o PDF em "Meus arquivos".
+ * Devolve a nova data de expiração (ms) ou null para manter como está.
+ */
+function askKeep(file, willDownload) {
+  const dlg = $("keep-dialog");
+  const now = serverNow();
+  $("keep-title").textContent = `“${file.title}”`;
+  const note = $("keep-note");
+  note.hidden = true;
+  $("keep-skip").textContent = `Decidir depois (fica até ${formatDate(file.expiresAt)})`;
+
+  // Qual opção corresponde à validade atual (para destacar)
+  const diffs = RETENTION_OPTIONS.map((o) => Math.abs(retentionExpiry(o, now) - file.expiresAt));
+  const curIdx = diffs.indexOf(Math.min(...diffs));
+  const currentMatches = diffs[curIdx] < 2 * 3600 * 1000;
+
+  const box = $("keep-options");
+  box.innerHTML = RETENTION_OPTIONS.map((o, i) => {
+    const until = retentionExpiry(o, now);
+    const when = o.hours && o.hours < 48 ? formatDateTime(until) : formatDate(until);
+    return `<button class="keep-opt${currentMatches && i === curIdx ? " current" : ""}" type="submit" value="${o.id}" data-id="${o.id}">
+      <strong>${o.label}</strong><span>até ${when}</span></button>`;
+  }).join("");
+
+  // Avisa quando alguma opção é menor que o prazo de download do público
+  const shorter = RETENTION_OPTIONS.filter((o) => o.hours && o.hours < DOWNLOAD_HOURS).map((o) => o.label);
+  if (willDownload && shorter.length) {
+    note.hidden = false;
+    note.textContent = `Se escolher ${shorter.join(" ou ")}, o link de download para o público também expira nesse prazo.`;
+  }
+
+  return new Promise((resolve) => {
+    dlg.returnValue = "keep";
+    dlg.addEventListener("close", () => {
+      const o = RETENTION_OPTIONS.find((x) => x.id === dlg.returnValue);
+      resolve(o ? retentionExpiry(o) : null);
+    }, { once: true });
+    dlg.showModal();
+    box.querySelector(".keep-opt.current, .keep-opt:last-child")?.focus();
+  });
+}
+
+/** Pergunta o tempo de guarda do PDF da sessão e grava. Devolve a validade final (ou null se não houver arquivo). */
+async function chooseRetention(pin, willDownload) {
+  const fileId = (await get(ref(db, `sessions/${pin}/file`))).val();
+  if (!fileId) return null;
+  const f = (await get(ref(db, `library/${user.uid}/${fileId}`))).val();
+  if (!f) return null;
+  if (!f.askKeep) return f.expiresAt; // só pergunta no fim da 1ª apresentação depois do envio
+  const exp = await askKeep({ id: fileId, ...f }, willDownload);
+  if (exp == null) return f.expiresAt; // "Decidir depois": pergunta de novo na próxima vez
+  await update(ref(db, `library/${user.uid}/${fileId}`), { expiresAt: exp, askKeep: null });
+  const o = RETENTION_OPTIONS.find((x) => Math.abs(retentionExpiry(x) - exp) < 60000);
+  toast(`Arquivo salvo em Meus arquivos${o ? ` por ${o.label}` : ""}.`, "ok");
+  return exp;
+}
+
 async function endSession(pin) {
   const mode = (await get(ref(db, `sessions/${pin}/mode`)).catch(() => null))?.val();
   if (mode === "screen") return endScreen(pin);
@@ -811,7 +925,9 @@ async function endSession(pin) {
     const wasCurrent = current?.pin === pin;
     if (choice === "finish") {
       finishStroke();
-      const expiresAt = serverNow() + DOWNLOAD_HOURS * 3600 * 1000;
+      const fileExp = await chooseRetention(pin, true);
+      // O download do público dura 24 h, ou menos se o arquivo for apagado antes
+      const expiresAt = Math.min(serverNow() + DOWNLOAD_HOURS * 3600 * 1000, fileExp ?? Infinity);
       await update(ref(db), {
         [`sessions/${pin}/ended`]: true,
         [`sessions/${pin}/endedAt`]: serverTimestamp(),
@@ -825,6 +941,7 @@ async function endSession(pin) {
         showQrModal(pin);
       }
     } else {
+      await chooseRetention(pin, false);
       if (wasCurrent) stopPresenting();
       await cleanup(pin);
       toast("Apresentação encerrada. O PDF continua em Meus arquivos.", "ok");
