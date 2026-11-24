@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="robots" content="noindex">
+  <title>Painel do apresentador</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f8cff'/><path d='M38 30v40l32-20z' fill='white'/></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="logo" aria-hidden="true">▶</span>Apresentação <em>ao vivo</em></a>
+    <div class="topbar-right">
+      <span id="user-email" class="muted small"></span>
+      <button id="logout" class="btn ghost sm" type="button" hidden>Sair</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <div id="config-alert" class="alert" hidden>
+      O Firebase ainda não foi configurado. Edite <code>js/firebase-config.js</code> (veja o README).
+    </div>
+
+    <!-- Login -->
+    <section id="login" class="card center-card" hidden>
+      <h1>Área do apresentador</h1>
+      <p class="muted">Entre com seu usuário para enviar e controlar apresentações.</p>
+      <form id="login-form" novalidate>
+        <label class="field">E-mail
+          <input id="email" type="email" autocomplete="username" required>
+        </label>
+        <label class="field">Senha
+          <input id="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn primary block" type="submit" id="login-btn">Entrar</button>
+        <p id="login-error" class="error" role="alert"></p>
+        <button class="link-btn" type="button" id="forgot">Esqueci minha senha</button>
+      </form>
+      <p class="muted small center">Vai só assistir? <a href="./">Entre com o PIN</a>.</p>
+    </section>
+
+    <!-- Painel -->
+    <section id="dashboard" hidden>
+      <div class="card">
+        <h2>Nova apresentação</h2>
+        <form id="upload-form" novalidate>
+          <label class="field">Título
+            <input id="title" type="text" maxlength="120" placeholder="Ex.: Aula 3 — Planilhas">
+          </label>
+          <label id="dropzone" class="dropzone" tabindex="0">
+            <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+            <span class="dz-icon" aria-hidden="true">📄</span>
+            <span id="dz-text"><strong>Clique para escolher</strong> ou arraste o PDF aqui</span>
+            <span class="muted small">Tamanho máximo: 30 MB</span>
+          </label>
+          <div id="upload-progress" class="progress" hidden><div class="bar"></div><span></span></div>
+          <button class="btn primary block" type="submit" id="upload-btn" disabled>Enviar e gerar PIN</button>
+          <p id="upload-error" class="error" role="alert"></p>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Minhas apresentações</h2>
+        <ul id="my-list" class="session-list"><li class="muted">Carregando…</li></ul>
+      </div>
+    </section>
+
+    <!-- Apresentando -->
+    <section id="present" class="presentation" hidden>
+      <div class="pres-bar">
+        <div class="pres-info">
+          <div class="pin-box" title="PIN de acesso">
+            <span class="muted small">PIN</span>
+            <strong id="p-pin">----</strong>
+          </div>
+          <div class="pres-text">
+            <strong id="p-title" class="pres-title"></strong>
+            <span class="muted small">👥 <span id="p-viewers">0</span> assistindo</span>
+          </div>
+        </div>
+        <div class="pres-actions">
+          <button id="p-copy" class="btn ghost sm" type="button">🔗 Copiar link</button>
+          <button id="p-fullscreen" class="btn ghost sm" type="button" title="Tela cheia (F)">⛶ Tela cheia</button>
+          <button id="p-back" class="btn ghost sm" type="button">Painel</button>
+          <button id="p-end" class="btn danger sm" type="button">Encerrar</button>
+        </div>
+      </div>
+
+      <div id="p-stage" class="stage clickable">
+        <canvas id="p-canvas"></canvas>
+        <div id="p-msg" class="stage-msg" hidden></div>
+        <div class="fs-controls">
+          <button class="nav-btn" id="fs-prev" type="button" aria-label="Slide anterior">‹</button>
+          <span id="fs-page"></span>
+          <button class="nav-btn" id="fs-next" type="button" aria-label="Próximo slide">›</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="p-first" class="btn ghost" type="button" aria-label="Primeiro slide">⏮</button>
+        <button id="p-prev" class="btn nav" type="button">‹ Anterior</button>
+        <span id="p-page" class="page-indicator big">1 / 1</span>
+        <button id="p-next" class="btn nav primary" type="button">Próximo ›</button>
+        <button id="p-last" class="btn ghost" type="button" aria-label="Último slide">⏭</button>
+      </div>
+      <p class="muted small center hint">Atalhos: ← → (ou espaço) para navegar · F para tela cheia · toque na metade esquerda/direita do slide</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    Desenvolvido por <a href="https://feliperodrigues.net" target="_blank" rel="noopener">feliperodrigues.net</a>
+  </footer>
+
+  <script type="module" src="js/presenter.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1117">
+  <title>Apresentação ao vivo</title>
+  <meta name="description" content="Assista à apresentação em tempo real usando o PIN de acesso.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f8cff'/><path d='M38 30v40l32-20z' fill='white'/></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./"><span class="logo" aria-hidden="true">▶</span>Apresentação <em>ao vivo</em></a>
+    <a class="btn ghost sm" href="apresentador.html">Sou o apresentador</a>
+  </header>
+
+  <main id="main">
+    <div id="config-alert" class="alert" hidden>
+      O Firebase ainda não foi configurado. Edite <code>js/firebase-config.js</code> (veja o README).
+    </div>
+
+    <!-- Entrada com PIN -->
+    <section id="join" class="card center-card">
+      <h1>Entrar na apresentação</h1>
+      <p class="muted">Digite o PIN de 4 números informado pelo apresentador.</p>
+      <form id="join-form" autocomplete="off" novalidate>
+        <label for="pin" class="sr-only">PIN de acesso</label>
+        <input id="pin" class="pin-input" type="text" inputmode="numeric" pattern="\d{4}"
+               maxlength="4" placeholder="0000" autocomplete="one-time-code" required>
+        <button class="btn primary block" type="submit" id="join-btn">Assistir</button>
+        <p id="join-error" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- Visualização -->
+    <section id="viewer" class="presentation" hidden>
+      <div class="pres-bar">
+        <div class="pres-info">
+          <span id="v-badge" class="badge live">● AO VIVO</span>
+          <strong id="v-title" class="pres-title"></strong>
+        </div>
+        <div class="pres-actions">
+          <span id="v-page" class="page-indicator"></span>
+          <button id="v-fullscreen" class="btn ghost sm" type="button" title="Tela cheia (F)">⛶ Tela cheia</button>
+          <button id="v-leave" class="btn ghost sm" type="button">Sair</button>
+        </div>
+      </div>
+      <div id="v-stage" class="stage">
+        <canvas id="v-canvas"></canvas>
+        <div id="v-msg" class="stage-msg"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    Desenvolvido por <a href="https://feliperodrigues.net" target="_blank" rel="noopener">feliperodrigues.net</a>
+  </footer>
+
+  <script type="module" src="js/viewer.js"></script>
+</body>
+</html>

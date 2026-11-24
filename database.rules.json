@@ -1,0 +1,42 @@
+{
+  "rules": {
+    "sessions": {
+      "$pin": {
+        ".read": true,
+        ".write": "auth != null && (!data.exists() || data.child('owner').val() === auth.uid) && (!newData.exists() || newData.child('owner').val() === auth.uid)",
+        ".validate": "$pin.matches(/^[0-9]{4}$/) && newData.hasChildren(['owner', 'title', 'numPages', 'currentPage', 'chunks', 'ready'])",
+        "owner": { ".validate": "newData.isString()" },
+        "title": { ".validate": "newData.isString() && newData.val().length <= 120" },
+        "numPages": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+        "currentPage": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= newData.parent().child('numPages').val()" },
+        "chunks": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 60" },
+        "ready": { ".validate": "newData.isBoolean()" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+    "files": {
+      "$pin": {
+        ".read": true,
+        ".write": "auth != null && root.child('sessions/' + $pin + '/owner').val() === auth.uid",
+        "$chunk": { ".validate": "newData.isString() && newData.val().length <= 1100000" }
+      }
+    },
+    "viewers": {
+      "$pin": {
+        ".read": "auth != null && root.child('sessions/' + $pin + '/owner').val() === auth.uid",
+        ".write": "auth != null && root.child('sessions/' + $pin + '/owner').val() === auth.uid",
+        "$viewer": {
+          ".write": "!newData.exists() || root.child('sessions/' + $pin).exists()",
+          ".validate": "newData.isNumber()"
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
