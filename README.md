@@ -8,6 +8,7 @@ Sistema web para apresentar um PDF em tempo real para várias pessoas ao mesmo t
 - Quando o apresentador **avança ou volta** um slide, a mudança aparece **em todas as telas** na hora.
 - O apresentador pode **escrever com lápis** e **marcar com marca-texto** (várias cores), e todos veem ao vivo.
 - Ao encerrar, o público pode **baixar o PDF por 24 horas**, por link ou **QR Code** gerados automaticamente.
+- Também dá para **espelhar a tela** (ou a câmera) **com microfone** ao vivo, com atraso de chamada de vídeo (WebRTC, como no Google Meet).
 
 Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Firebase Realtime Database** (plano gratuito Spark) e o **Firebase Authentication**.
 
@@ -37,6 +38,9 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 | Lista mostra até quando o download fica disponível (com QR e link) | Contagem do tempo restante; link expira sozinho |
 | Controle de mais de um dispositivo (ex.: notebook no projetor + celular como controle remoto) | |
 | Apresentações vencidas são apagadas automaticamente | |
+| **Espelhar tela** (tela inteira, janela ou aba) com áudio do sistema e **microfone** | Vídeo ao vivo com baixo atraso, em tela cheia |
+| No celular: transmitir **câmera** (frontal/traseira) + microfone | Botão "Toque para ativar o som" |
+| Modo **texto** (nitidez máxima) ou **vídeo** (mais fluido) | Reconecta sozinho se a internet oscilar |
 
 ## Estrutura
 
@@ -56,6 +60,8 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 │   ├── pdf-render.js       # Renderização dos slides com PDF.js
 │   ├── annotations.js      # Lápis/marca-texto e geração do PDF com anotações
 │   ├── download.js         # Lógica da página de download
+│   ├── screen.js           # Espelhamento de tela/câmera + microfone (WebRTC)
+│   ├── rtc-config.js       # Servidores STUN/TURN e qualidade do vídeo
 │   ├── vendor/qrcode.js    # Gerador de QR Code (sem depender de internet)
 │   ├── viewer.js           # Lógica do visitante
 │   └── presenter.js        # Lógica do apresentador
@@ -67,6 +73,7 @@ Feito com HTML, CSS e JavaScript puros, roda no **GitHub Pages** e usa o **Fireb
 ```
 sessions/{PIN}           → dono, título, nº de páginas, slide atual, pronto?, encerrada?, expira em
 annotations/{PIN}/{pág}  → traços de lápis/marca-texto (cor, espessura e pontos normalizados)
+rtc/{PIN}/{visitante}    → sinalização do espelhamento (proposta, resposta e candidatos de rede)
 files/{PIN}/c0, c1, …    → o PDF em pedaços (base64)
 viewers/{PIN}/{id}       → presença de cada visitante (some ao fechar a aba)
 users/{uid}/profile      → nome, sobrenome, nascimento, e-mail e foto (.webp em base64)
@@ -135,6 +142,13 @@ Enquanto o Apple não estiver configurado, o botão mostra a mensagem "Este mét
    - **Encerrar e apagar agora**: o arquivo é apagado na hora.
 7. Em **Minhas apresentações**, as encerradas mostram até quando o download vale, com os botões **QR e link de download**, **Reabrir** e **Excluir**.
 
+**Espelhar tela**
+1. No painel, digite um título (opcional) e clique em **Espelhar tela**. Um PIN é gerado na hora.
+2. Clique em **Compartilhar tela** e escolha a tela inteira, uma janela ou uma aba. Para transmitir o som de um vídeo, escolha uma **aba** e marque "Compartilhar áudio".
+3. Ligue o **Microfone** se quiser falar. Use **Modo texto** para slides e código (mais nítido) ou **Modo vídeo** para vídeos e animações (mais fluido).
+4. No celular ou tablet, use **Câmera** (o botão 🔄 troca entre a câmera frontal e a traseira).
+5. **Parar** pausa a transmissão sem fechar o PIN; **Encerrar** fecha para todos.
+
 **Visitante**
 1. Abra `https://lferodrigues.github.io/apresentacao/` e clique em **Apresentação** (ou abra direto `.../assistir.html`).
 2. Digite o PIN e clique em **Assistir**.
@@ -159,6 +173,9 @@ Adicione `localhost` aos domínios autorizados do Firebase Authentication (norma
 - **Proteção:** o botão direito, o F12, os atalhos do inspecionar (Ctrl+Shift+I/J/C, Cmd+Option+I no Mac), Ctrl+U, salvar, imprimir e copiar ficam bloqueados. Isso barra o uso comum, mas nenhum site consegue impedir 100% o acesso às ferramentas do desenvolvedor (por exemplo, pelo menu do navegador).
 - **Download por 24 h:** o prazo é conferido pelas regras do banco com a hora do servidor, então depois de 24 h ninguém mais consegue baixar, mesmo com o link. O plano gratuito não tem tarefas agendadas: os arquivos vencidos são apagados quando o apresentador abre o painel ou quando o PIN é reutilizado.
 - **PDF com anotações:** é montado no navegador de quem baixa, com a biblioteca pdf-lib (carregada da CDN jsDelivr). Se algo falhar, o PDF original é baixado.
+- **Espelhamento de tela:** o vídeo vai direto do apresentador para cada pessoa (WebRTC ponto a ponto), com atraso típico abaixo de meio segundo. Como cada pessoa recebe uma cópia, o upload do apresentador é multiplicado: em média 1,5 a 2,5 Mbps por pessoa. Funciona bem para cerca de 10 a 15 pessoas; para plateias grandes seria preciso um servidor de mídia (por exemplo, LiveKit ou Cloudflare Calls).
+- **Celulares e tablets** não permitem espelhar a tela pelo navegador (limitação do iOS e do Android); neles a opção é transmitir a câmera e o microfone. Para espelhar a tela do celular, use um computador com o celular conectado (por exemplo, scrcpy no Android ou QuickTime no iPhone) e compartilhe essa janela.
+- **Redes restritas:** em algumas redes (empresas, escolas, alguns 4G/5G) a conexão direta é bloqueada. Para esses casos, configure um servidor **TURN** em `js/rtc-config.js`. Há opções com plano gratuito, como Metered (Open Relay) e Cloudflare Calls TURN.
 - **Foto de perfil:** é recortada em quadrado, reduzida para 320×320 px e salva como WebP (normalmente 10–40 KB) direto no Realtime Database, sem precisar do Firebase Storage.
 - **iPhone:** o Safari não tem tela cheia "de verdade" para páginas; o sistema usa um modo que ocupa a tela toda.
 - Para restringir o envio a **um único usuário**, troque nas regras `auth != null` por `auth.uid === 'SEU_UID'` (o UID aparece na aba Usuários do Authentication).
@@ -168,6 +185,7 @@ Adicione `localhost` aos domínios autorizados do Firebase Authentication (norma
 - [Firebase](https://firebase.google.com) — Authentication e Realtime Database (SDK modular 10.12, via CDN)
 - [PDF.js](https://mozilla.github.io/pdf.js/) 4.4 — renderização dos slides
 - [pdf-lib](https://pdf-lib.js.org/) 1.17 — PDF com anotações
+- WebRTC (nativo dos navegadores) — espelhamento de tela, câmera e microfone
 - QRCode for JavaScript (Kazuhiko Arase, licença MIT), empacotado em `js/vendor/qrcode.js`
 - HTML, CSS e JavaScript puros (sem build)
 

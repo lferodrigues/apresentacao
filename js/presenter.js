@@ -1,9 +1,10 @@
 import {
-  ref, get, set, update, remove, push, onValue, serverTimestamp
+  ref, get, set, update, remove, push, onValue, onDisconnect, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import { db, configOk } from "./firebase.js";
 import { SlideRenderer } from "./pdf-render.js";
 import { initAccount } from "./account.js";
+import { ScreenBroadcaster, canShareScreen, canUseCamera } from "./screen.js";
 import {
   AnnotationLayer, PEN_COLORS, HL_COLORS, WIDTH, MAX_POINTS, encodePts, strokesFromSnap
 } from "./annotations.js";
@@ -16,7 +17,7 @@ import {
 const $ = (id) => document.getElementById(id);
 const sections = {
   login: $("login"), signup: $("signup"), forgot: $("forgot"),
-  dashboard: $("dashboard"), present: $("present"),
+  dashboard: $("dashboard"), present: $("present"), screen: $("screen"),
 };
 
 const stage = $("p-stage"), pMsg = $("p-msg");
@@ -31,7 +32,7 @@ let selectedFile = null;
 
 function show(name) {
   for (const [k, el] of Object.entries(sections)) el.hidden = k !== name;
-  document.body.classList.toggle("presenting", name === "present");
+  document.body.classList.toggle("presenting", name === "present" || name === "screen");
   window.scrollTo(0, 0);
 }
 
@@ -50,6 +51,7 @@ if (!configOk) {
     },
     onSignedOut() {
       stopPresenting(false);
+      stopScreen(false);
       listUnsub?.(); listUnsub = null;
       user = null;
     },
@@ -184,24 +186,26 @@ function watchMyList() {
     const list = items.filter((s) => !(s.ended && s.expiresAt && s.expiresAt < now));
 
     if (!list.length) {
-      ul.innerHTML = '<li class="muted">Nenhuma apresentação ativa. Envie um PDF acima.</li>';
+      ul.innerHTML = '<li class="muted">Nenhuma apresentação ativa. Envie um PDF ou espelhe sua tela acima.</li>';
       return;
     }
     ul.innerHTML = list.map((s) => `
-      <li class="${s.ended ? "is-ended" : ""}">
+      <li class="${s.ended ? "is-ended" : ""} ${s.mode === "screen" ? "is-screen" : ""}">
         <div class="s-pin">${s.pin}</div>
         <div class="s-info">
           <strong>${escapeHtml(s.title)}</strong>
           <span class="muted small">${s.ended
             ? `<span class="tag">Encerrada · download até ${formatDateTime(s.expiresAt)}</span>`
-            : `${s.numPages || "?"} slides · ${s.createdAt ? new Date(s.createdAt).toLocaleString("pt-BR") : ""}`}</span>
+            : s.mode === "screen"
+              ? `<span class="tag green">🖥 Espelhamento de tela</span> ${s.createdAt ? new Date(s.createdAt).toLocaleString("pt-BR") : ""}`
+              : `${s.numPages || "?"} slides · ${s.createdAt ? new Date(s.createdAt).toLocaleString("pt-BR") : ""}`}</span>
         </div>
         <div class="s-actions">
           ${s.ended
             ? `<button class="btn primary sm" data-act="qr" data-pin="${s.pin}">QR e link de download</button>
                <button class="btn ghost sm" data-act="open" data-pin="${s.pin}">Reabrir</button>
                <button class="btn danger sm" data-act="delete" data-pin="${s.pin}">Excluir</button>`
-            : `<button class="btn primary sm" data-act="open" data-pin="${s.pin}">Apresentar</button>
+            : `<button class="btn primary sm" data-act="open" data-pin="${s.pin}">${s.mode === "screen" ? "Transmitir" : "Apresentar"}</button>
                <button class="btn ghost sm" data-act="copy" data-pin="${s.pin}">Link</button>
                <button class="btn danger sm" data-act="end" data-pin="${s.pin}">Encerrar</button>`}
         </div>
@@ -240,6 +244,7 @@ async function reopen(pin, btn) {
       return;
     }
     const d = snap.val();
+    if (d.mode === "screen") { startScreen(pin, d.title); return; }
     btn.textContent = "Baixando…";
     const bytes = await downloadPdf(db, pin, d.chunks, (p) => (btn.textContent = `${Math.round(p * 100)}%`));
     await renderer.load(bytes);
@@ -265,6 +270,7 @@ async function reopen(pin, btn) {
 /* ================= APRESENTAÇÃO ================= */
 function startPresenting(pin, title, numPages, page) {
   stopPresenting(false);
+  stopScreen(false);
   current = { pin, title, numPages, page, unsubs: [], annUnsub: null, ended: false };
   $("p-pin").textContent = pin;
   $("p-title").textContent = title;
@@ -548,6 +554,7 @@ async function purge(pin, ownerUid) {
   const upd = {
     [`viewers/${pin}`]: null,
     [`annotations/${pin}`]: null,
+    [`rtc/${pin}`]: null,
     [`files/${pin}`]: null,
     [`sessions/${pin}`]: null,
   };
@@ -577,6 +584,8 @@ function askEnd(pin) {
 }
 
 async function endSession(pin) {
+  const mode = (await get(ref(db, `sessions/${pin}/mode`)).catch(() => null))?.val();
+  if (mode === "screen") return endScreen(pin);
   const choice = await askEnd(pin);
   if (choice === "cancel") return;
 
@@ -622,5 +631,191 @@ async function deleteSession(pin) {
   } catch (err) {
     console.error(err);
     toast("Erro ao excluir: " + (err?.message || err), "err");
+  }
+}
+
+/* ================= ESPELHAMENTO DE TELA ================= */
+let bc = null;            // ScreenBroadcaster ativo
+let screenPin = null;
+let screenUnsubs = [];
+
+$("screen-btn").addEventListener("click", createScreenSession);
+
+async function createScreenSession() {
+  if (!user) return;
+  if (!canShareScreen() && !canUseCamera()) {
+    $("upload-error").textContent = "Este navegador não permite transmitir tela nem câmera.";
+    return;
+  }
+  const btn = $("screen-btn");
+  btn.disabled = true;
+  $("upload-error").textContent = "";
+  try {
+    const title = $("title").value.trim() || "Tela ao vivo";
+    const pin = await generatePin();
+    await set(ref(db, `sessions/${pin}`), {
+      owner: user.uid, title, mode: "screen", ready: true, live: false, createdAt: serverTimestamp(),
+    });
+    await set(ref(db, `users/${user.uid}/sessions/${pin}`), { title, mode: "screen", createdAt: serverTimestamp() });
+    $("title").value = "";
+    toast(`Transmissão criada! PIN ${pin}`, "ok");
+    startScreen(pin, title);
+  } catch (err) {
+    console.error(err);
+    $("upload-error").textContent = "Não foi possível criar a transmissão: " + (err?.message || err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function startScreen(pin, title) {
+  stopPresenting(false);
+  stopScreen(false);
+  screenPin = pin;
+  $("s-pin").textContent = pin;
+  $("s-title").textContent = title;
+  $("s-viewers").textContent = "0";
+  document.title = `PIN ${pin} · ${title}`;
+  show("screen");
+
+  bc = new ScreenBroadcaster(db, pin, {
+    onViewers: (n) => { $("s-viewers").textContent = n; },
+    onSource: (src) => updateScreenUi(src),
+  });
+  bc.listen();
+  updateScreenUi(null);
+
+  // Se a página fechar ou a internet cair, avisa que parou
+  onDisconnect(ref(db, `sessions/${pin}/live`)).set(false).catch(() => {});
+
+  screenUnsubs.push(onValue(ref(db, `sessions/${pin}`), (s) => {
+    if (screenPin === pin && !s.exists()) {
+      toast("A transmissão foi encerrada.", "err");
+      stopScreen();
+    }
+  }));
+}
+
+function updateScreenUi(src) {
+  if (!bc || !screenPin) return;
+  const live = !!src;
+  const badge = $("s-live");
+  badge.className = live ? "badge live" : "badge ended";
+  badge.textContent = live ? "● AO VIVO" : "PARADO";
+
+  const video = $("s-video");
+  video.srcObject = live ? bc.stream : null;
+  $("s-stage").classList.toggle("is-video", live);
+
+  const msg = $("s-msg");
+  if (live) {
+    msg.innerHTML = "";
+  } else {
+    msg.innerHTML = `<div class="screen-start">
+      <div class="big-ico">🖥</div>
+      <h2>Pronto para transmitir</h2>
+      <p class="muted">${canShareScreen()
+        ? "Clique em <b>Compartilhar tela</b> e escolha a tela inteira, uma janela ou uma aba. Para enviar o som de um vídeo, escolha uma <b>aba</b> e marque “compartilhar áudio”."
+        : "Este aparelho não permite espelhar a tela pelo navegador (celulares e tablets). Você pode transmitir a <b>câmera</b> e o <b>microfone</b>."}</p>
+      <p class="muted small">Quem estiver com o PIN <b>${screenPin}</b> vê tudo ao vivo.</p>
+    </div>`;
+  }
+
+  $("s-share").hidden = !canShareScreen();
+  $("s-share").textContent = src === "screen" ? "🖥 Trocar tela" : "🖥 Compartilhar tela";
+  $("s-share").classList.toggle("primary", src !== "camera");
+  $("s-camera").hidden = !canUseCamera();
+  $("s-camera").textContent = src === "camera" ? "📷 Câmera ligada" : "📷 Câmera";
+  $("s-camera").classList.toggle("primary", !canShareScreen() || src === "camera");
+  $("s-flip").hidden = src !== "camera";
+  $("s-mode").hidden = src !== "screen";
+  $("s-stop").hidden = !live;
+
+  update(ref(db, `sessions/${screenPin}`), { live }).catch(() => {});
+}
+
+async function startShare(kind) {
+  if (!bc) return;
+  try {
+    if (kind === "screen") await bc.shareScreen();
+    else await bc.shareCamera();
+  } catch (err) {
+    console.warn(err);
+    if (err?.name === "NotAllowedError") toast("Permissão negada ou compartilhamento cancelado.", "err");
+    else if (err?.name === "NotFoundError") toast("Nenhuma câmera encontrada.", "err");
+    else toast("Não foi possível iniciar: " + (err?.message || err), "err");
+  }
+}
+
+$("s-share").addEventListener("click", () => startShare("screen"));
+$("s-camera").addEventListener("click", () => startShare("camera"));
+$("s-flip").addEventListener("click", () => bc?.flipCamera().catch(() => toast("Não foi possível trocar a câmera.", "err")));
+$("s-stop").addEventListener("click", () => bc?.stopSharing());
+$("s-mode").addEventListener("click", () => {
+  if (!bc) return;
+  const motion = bc.mode !== "motion";
+  bc.setMode(motion ? "motion" : "detail");
+  $("s-mode").textContent = motion ? "🎬 Modo vídeo" : "🔤 Modo texto";
+  toast(motion ? "Modo vídeo: mais fluido, ideal para vídeos e animações." : "Modo texto: máxima nitidez, ideal para slides e código.");
+});
+$("s-mic").addEventListener("click", async () => {
+  if (!bc) return;
+  const b = $("s-mic");
+  try {
+    await bc.setMic(!bc.micOn);
+    b.setAttribute("aria-pressed", String(bc.micOn));
+    b.classList.toggle("primary", bc.micOn);
+    b.textContent = bc.micOn ? "🎙 Microfone ligado" : "🎙 Microfone desligado";
+  } catch (err) {
+    console.warn(err);
+    toast("Não foi possível usar o microfone. Verifique a permissão do navegador.", "err");
+  }
+});
+$("s-copy").addEventListener("click", () => screenPin && copyText(shareLink(screenPin)));
+$("s-back").addEventListener("click", () => stopScreen());
+$("s-end").addEventListener("click", () => screenPin && endScreen(screenPin));
+
+function resetMicButton() {
+  const b = $("s-mic");
+  b.setAttribute("aria-pressed", "false");
+  b.classList.remove("primary");
+  b.textContent = "🎙 Microfone desligado";
+  $("s-mode").textContent = "🔤 Modo texto";
+}
+
+function stopScreen(goDashboard = true) {
+  const pin = screenPin;
+  screenUnsubs.forEach((u) => u());
+  screenUnsubs = [];
+  bc?.destroy();
+  bc = null;
+  screenPin = null;
+  $("s-video").srcObject = null;
+  $("s-stage").classList.remove("is-video");
+  resetMicButton();
+  if (pin) {
+    update(ref(db, `sessions/${pin}`), { live: false }).catch(() => {});
+    onDisconnect(ref(db, `sessions/${pin}/live`)).cancel().catch(() => {});
+  }
+  if (goDashboard && user && !sections.screen.hidden) {
+    document.title = "Painel do apresentador";
+    show("dashboard");
+  }
+}
+
+async function endScreen(pin) {
+  const ok = await modal({
+    title: `Encerrar a transmissão ${pin}?`,
+    html: "<p class=\"muted\">A transmissão para e o PIN deixa de funcionar para todos.</p>",
+    buttons: [{ label: "Encerrar transmissão", value: true, cls: "danger" }, { label: "Cancelar", cls: "ghost" }],
+  });
+  if (!ok) return;
+  try {
+    if (screenPin === pin) stopScreen();
+    await cleanup(pin);
+    toast("Transmissão encerrada.", "ok");
+  } catch (err) {
+    console.error(err);
+    toast("Erro ao encerrar: " + (err?.message || err), "err");
   }
 }

@@ -152,6 +152,11 @@
           <div id="upload-progress" class="progress" hidden><div class="bar"></div><span></span></div>
           <button class="btn primary block" type="submit" id="upload-btn" disabled>Enviar e gerar PIN</button>
           <p id="upload-error" class="error" role="alert"></p>
+          <div class="divider"><span>ou</span></div>
+          <button class="btn mirror-btn block" type="button" id="screen-btn">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M12 7v6M9.5 9.5 12 7l2.5 2.5"/></svg>
+            <span><strong>Espelhar tela</strong><small>Tela, janela ou câmera + microfone, ao vivo como numa chamada de vídeo</small></span>
+          </button>
         </form>
       </div>
 
@@ -159,6 +164,42 @@
         <h2>Minhas apresentações</h2>
         <ul id="my-list" class="session-list"><li class="muted">Carregando…</li></ul>
       </div>
+    </section>
+
+    <!-- Espelhamento de tela -->
+    <section id="screen" class="presentation" hidden>
+      <div class="pres-bar">
+        <div class="pres-info">
+          <div class="pin-box" title="PIN de acesso">
+            <span class="muted small">PIN</span>
+            <strong id="s-pin">----</strong>
+          </div>
+          <div class="pres-text">
+            <strong id="s-title" class="pres-title"></strong>
+            <span class="muted small"><span id="s-live" class="badge ended">PARADO</span> 👥 <span id="s-viewers">0</span> assistindo</span>
+          </div>
+        </div>
+        <div class="pres-actions">
+          <button id="s-copy" class="btn ghost sm" type="button">🔗 Copiar link</button>
+          <button id="s-back" class="btn ghost sm" type="button">Painel</button>
+          <button id="s-end" class="btn danger sm" type="button">Encerrar</button>
+        </div>
+      </div>
+
+      <div id="s-stage" class="stage">
+        <video id="s-video" autoplay playsinline muted></video>
+        <div id="s-msg" class="stage-msg"></div>
+      </div>
+
+      <div class="controls screen-controls">
+        <button id="s-share" class="btn nav primary" type="button">🖥 Compartilhar tela</button>
+        <button id="s-camera" class="btn nav" type="button">📷 Câmera</button>
+        <button id="s-flip" class="btn ghost" type="button" title="Trocar câmera" hidden>🔄</button>
+        <button id="s-mic" class="btn nav" type="button" aria-pressed="false">🎙 Microfone desligado</button>
+        <button id="s-mode" class="btn ghost" type="button" title="Escolha conforme o conteúdo">🔤 Modo texto</button>
+        <button id="s-stop" class="btn ghost" type="button" hidden>⏹ Parar</button>
+      </div>
+      <p class="muted small center hint">Cada pessoa recebe a transmissão direto do seu aparelho. Para muitas pessoas, use uma internet com bom upload.</p>
     </section>
 
     <!-- Apresentando -->

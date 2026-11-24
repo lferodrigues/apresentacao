@@ -612,3 +612,45 @@ input[type="date"] {
 
 #present.is-ended .controls, #present.is-ended .hint,
 #present.is-ended #p-end, #present.is-ended #p-copy { display: none; }
+
+/* =====================================================================
+   ESPELHAMENTO DE TELA
+   ===================================================================== */
+.mirror-btn {
+  justify-content: flex-start; gap: 14px; padding: 16px 18px; text-align: left; white-space: normal;
+  background: linear-gradient(135deg, rgba(155, 107, 255, .16), rgba(155, 107, 255, .04));
+  border-color: rgba(155, 107, 255, .45);
+}
+.mirror-btn:hover:not(:disabled) { border-color: var(--lilac); background: linear-gradient(135deg, rgba(155, 107, 255, .26), rgba(155, 107, 255, .08)); }
+.mirror-btn svg { flex: none; color: var(--lilac); }
+.mirror-btn span { display: grid; gap: 2px; }
+.mirror-btn small { color: var(--muted); font-weight: 400; font-size: .82rem; }
+.tag.green { background: rgba(76, 187, 95, .15); color: var(--accent-light); }
+
+.stage video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain; background: #000; display: none;
+}
+.stage.is-video video { display: block; }
+.stage.is-video canvas { display: none; }
+#s-stage video { display: block; }
+
+.screen-start { display: grid; justify-items: center; gap: 8px; max-width: 520px; }
+.screen-start h2 { margin: 0; }
+.screen-start p { margin: 0; }
+.big-ico { font-size: 3rem; line-height: 1; }
+
+.screen-controls { flex-wrap: wrap; }
+.screen-controls .btn.nav { min-width: 170px; }
+
+.unmute {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6;
+  padding: 12px 20px; border-radius: 999px; border: 0; cursor: pointer;
+  font: inherit; font-weight: 700; color: #fff; background: var(--green-grad);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5); animation: pulse 2s infinite;
+}
+
+@media (max-width: 700px) {
+  .screen-controls .btn.nav { min-width: 0; flex: 1 1 45%; }
+  .screen-controls .btn.ghost { display: inline-flex; }
+}

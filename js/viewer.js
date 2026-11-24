@@ -4,6 +4,7 @@ import {
 import { db, configOk } from "./firebase.js";
 import { SlideRenderer } from "./pdf-render.js";
 import { AnnotationLayer, strokesFromSnap } from "./annotations.js";
+import { ScreenReceiver } from "./screen.js";
 import {
   isValidPin, downloadPdf, toggleFullscreen, escapeHtml,
   trackServerTime, serverNow, renderDownloadBox
@@ -17,7 +18,15 @@ const renderer = new SlideRenderer($("v-canvas"), stage);
 const ann = new AnnotationLayer($("v-ann"));
 renderer.onLayout = (w, h, dpr) => ann.resize(w, h, dpr);
 
-let state = null; // { pin, unsub, annUnsub, annPage, presence, loaded, loading, last }
+let state = null; // { pin, unsub, annUnsub, annPage, presence, loaded, loading, last, rx }
+const video = $("v-video"), unmuteBtn = $("v-unmute");
+
+unmuteBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  video.muted = false;
+  video.play().catch(() => {});
+  unmuteBtn.hidden = true;
+});
 
 if (!configOk) {
   $("config-alert").hidden = false;
@@ -112,6 +121,7 @@ function enter(pin) {
     document.title = `${d.title || "Apresentação"} · ao vivo`;
 
     if (d.ended) return ended(d);
+    if (d.mode === "screen") return handleScreen(current, d);
     if (current.isEnded) { current.isEnded = false; setBadge(true); stage.classList.remove("ended"); }
 
     if (!d.ready) {
@@ -150,6 +160,30 @@ function enter(pin) {
   });
 }
 
+/* ---------- Espelhamento de tela (vídeo ao vivo) ---------- */
+function handleScreen(cur, d) {
+  if (!cur.rx) {
+    stage.classList.add("is-video");
+    $("v-page").textContent = "Tela ao vivo";
+    video.muted = true;
+    cur.rx = new ScreenReceiver(db, cur.pin, video, {
+      onState: (st) => { cur.rtcState = st; refreshScreen(cur); },
+    });
+    cur.rx.start();
+  }
+  cur.live = !!d.live;
+  refreshScreen(cur);
+}
+
+function refreshScreen(cur) {
+  if (state !== cur) return;
+  const connected = cur.rtcState === "connected";
+  if (!cur.live) showMsg('<span class="spinner"></span>Aguardando o apresentador começar a transmissão…');
+  else if (!connected) showMsg('<span class="spinner"></span>Conectando à transmissão…');
+  else showMsg("");
+  unmuteBtn.hidden = !(cur.live && connected && video.muted);
+}
+
 /** Acompanha as anotações (lápis/marca-texto) do slide atual. */
 function watchAnnotations(page) {
   if (!state || state.annPage === page) return;
@@ -166,6 +200,7 @@ function watchAnnotations(page) {
 function ended(d) {
   if (!state) return;
   state.isEnded = true;
+  stopScreenRx();
   state.annUnsub?.(); state.annUnsub = null; state.annPage = null;
   setBadge(false);
   $("v-page").textContent = "";
@@ -192,6 +227,7 @@ function leave() {
   if (state) {
     state.unsub?.();
     state.annUnsub?.();
+    stopScreenRx();
     if (state.presence) {
       onDisconnect(state.presence).cancel().catch(() => {});
       remove(state.presence).catch(() => {});
@@ -209,4 +245,11 @@ function leave() {
   history.replaceState(null, "", location.pathname);
   pinInput.value = "";
   pinInput.focus();
+}
+
+function stopScreenRx() {
+  if (state?.rx) { state.rx.stop(); state.rx = null; }
+  stage.classList.remove("is-video");
+  unmuteBtn.hidden = true;
+  video.srcObject = null;
 }
